@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { BookingState, Sport, LessonType } from './types';
 import { SPORTS_OPTIONS, LESSONS, TIME_SLOTS } from './constants';
@@ -20,7 +21,7 @@ const STORAGE_KEYS = {
  * Logo component that uses the provided PNG logo.
  */
 const TLPLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' | 'xl'; light?: boolean }> = ({ size = 'md', light = false }) => {
-  const heightClass = size === 'sm' ? 'h-10' : size === 'md' ? 'h-16' : size === 'lg' ? 'h-28' : 'h-40';
+  const heightClass = size === 'sm' ? 'h-10' : size === 'md' ? 'h-16' : size === 'lg' ? 'h-24' : 'h-40';
   const logoUrl = "https://drive.google.com/uc?export=view&id=1dwJCUL8BFnagGDjDPb42cdvkeqvxi02S";
   
   return (
@@ -358,8 +359,13 @@ const App: React.FC = () => {
       updated[date] = [slot];
     } else {
       if (current.includes(slot)) {
-        updated[date] = current.filter(s => s !== slot);
-        if (updated[date].length === 0) delete updated[date];
+        // Fix: Use local variable to avoid accessing .length on string[] | boolean union
+        const filtered = current.filter(s => s !== slot);
+        if (filtered.length === 0) {
+          delete updated[date];
+        } else {
+          updated[date] = filtered;
+        }
       } else {
         updated[date] = [...current, slot];
       }
@@ -439,6 +445,7 @@ const App: React.FC = () => {
     // Filter out blocked slots
     const dayBlockedSlots = blockedSlots[booking.date];
     if (Array.isArray(dayBlockedSlots)) {
+      // Fix: dayBlockedSlots is local variable, Array.isArray narrowing works reliably here
       defaultSlots = defaultSlots.filter(s => !dayBlockedSlots.includes(s));
     }
 
@@ -455,45 +462,45 @@ const App: React.FC = () => {
       case 'login':
         return (
           <div className="space-y-6">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-black text-gray-800 tracking-tight">TRAIN LIKE PROS</h2>
-              <p className="text-gray-500 mt-2 font-medium">Log in to your elite member portal</p>
+            <div className="text-left mb-8">
+              <h2 className="text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase italic">TRAIN LIKE PROS</h2>
+              <p className="text-gray-500 mt-3 font-medium text-lg">Log in to your elite member portal</p>
             </div>
-            <form onSubmit={(e) => handleLogin(e, 'user')} className="space-y-4">
+            <form onSubmit={(e) => handleLogin(e, 'user')} className="space-y-5">
               <TextField id="login-email" label="Email Address" type="email" required />
               <TextField id="login-password" label="Password" type="password" required />
-              <button type="submit" className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black text-lg hover:brightness-110 shadow-lg shadow-pink-100 transition-all">
+              <button type="submit" className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black text-lg hover:brightness-110 shadow-lg shadow-pink-100 transition-all uppercase tracking-widest italic">
                 Sign In
               </button>
             </form>
             <div className="pt-2">
               <GoogleLoginButton label="Continue with Google" onClick={handleGoogleLogin} />
             </div>
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-gray-200"></div>
-              <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-widest">OR</span>
-              <div className="flex-grow border-t border-gray-200"></div>
+            <div className="relative flex py-4 items-center">
+              <div className="flex-grow border-t border-gray-100"></div>
+              <span className="flex-shrink mx-4 text-gray-300 text-[10px] font-black uppercase tracking-widest">OR</span>
+              <div className="flex-grow border-t border-gray-100"></div>
             </div>
-            <button onClick={() => { setIsAuthenticated(true); setIsGuest(true); }} className="w-full border-2 border-gray-200 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
-              <i className="fas fa-user-clock text-gray-400"></i> Continue as Guest
+            <button onClick={() => { setIsAuthenticated(true); setIsGuest(true); }} className="w-full border-2 border-gray-100 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
+              <i className="fas fa-user-clock text-gray-300"></i> Continue as Guest
             </button>
-            <div className="text-center pt-4 border-t space-y-2">
-              <p className="text-sm text-gray-500 font-medium">New athlete? <button onClick={() => setAuthView('register')} className="font-black text-tlp-pink hover:underline">Create Account</button></p>
-              <div className="pt-8"><button onClick={() => setAuthView('admin')} className="text-xs font-bold text-gray-400 hover:text-tlp-pink uppercase tracking-widest">Admin Portal</button></div>
+            <div className="text-left pt-6 border-t border-gray-100 space-y-4">
+              <p className="text-sm text-gray-500 font-medium">New athlete? <button onClick={() => setAuthView('register')} className="font-black text-tlp-pink hover:underline uppercase tracking-tight">Create Account</button></p>
+              <div className="pt-4"><button onClick={() => setAuthView('admin')} className="text-[10px] font-black text-gray-300 hover:text-tlp-pink uppercase tracking-[0.3em] transition-colors">Admin Portal Access</button></div>
             </div>
           </div>
         );
       case 'admin':
         return (
           <div className="space-y-6">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-pink-50 text-tlp-pink rounded-3xl mb-4 shadow-inner">
-                <i className="fas fa-user-shield text-3xl"></i>
+            <div className="text-left mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-pink-50 text-tlp-pink rounded-3xl mb-6 shadow-inner">
+                <i className="fas fa-user-shield text-2xl"></i>
               </div>
-              <h2 className="text-3xl font-black text-gray-800 tracking-tight">COACH ACCESS</h2>
-              <p className="text-gray-500 mt-2 font-medium">Authorize TLP Coaching Terminal</p>
+              <h2 className="text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase italic">COACH ACCESS</h2>
+              <p className="text-gray-500 mt-3 font-medium text-lg">Authorize TLP Coaching Terminal</p>
             </div>
-            <form onSubmit={(e) => handleLogin(e, 'admin')} className="space-y-4">
+            <form onSubmit={(e) => handleLogin(e, 'admin')} className="space-y-5">
               <TextField 
                 id="admin-id" 
                 label="Coach ID" 
@@ -509,33 +516,36 @@ const App: React.FC = () => {
                 value={adminLoginKey} 
                 onChange={(e) => setAdminLoginKey(e.target.value)} 
               />
-              <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-lg hover:bg-black shadow-lg transition-all">
+              <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-lg hover:bg-black shadow-lg transition-all uppercase tracking-widest italic">
                 Authorize Session
               </button>
-              <button type="button" onClick={() => setAuthView('login')} className="w-full text-gray-500 font-bold py-2 hover:text-tlp-pink transition">Back to Player Site</button>
+              <button type="button" onClick={() => setAuthView('login')} className="w-full text-gray-400 font-black py-2 hover:text-tlp-pink transition text-xs uppercase tracking-widest text-left">Back to Player Site</button>
             </form>
-            <div className="text-center mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <div className="text-left mt-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Default Dev Access</p>
-               <p className="text-[9px] text-slate-500 font-bold mt-1">ID: COACH1 • Key: admin123</p>
+               <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-tight">ID: COACH1 • Key: admin123</p>
             </div>
           </div>
         );
       case 'register':
         return (
           <div className="space-y-6">
-            <div className="text-center mb-8"><h2 className="text-3xl font-black text-gray-800 tracking-tight">JOIN TLP ELITE</h2></div>
-            <div className="space-y-4">
+            <div className="text-left mb-8">
+              <h2 className="text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase italic">JOIN TLP ELITE</h2>
+              <p className="text-gray-500 mt-3 font-medium text-lg">Start your professional training path</p>
+            </div>
+            <div className="space-y-5">
               <GoogleLoginButton label="Sign up with Google" onClick={handleGoogleLogin} />
-              <div className="relative flex py-2 items-center">
-                <div className="flex-grow border-t border-gray-200"></div>
-                <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-widest text-[10px]">Manual Entry</span>
-                <div className="flex-grow border-t border-gray-200"></div>
+              <div className="relative flex py-4 items-center">
+                <div className="flex-grow border-t border-gray-100"></div>
+                <span className="flex-shrink mx-4 text-gray-300 text-[10px] font-black uppercase tracking-widest">OR MANUAL ENTRY</span>
+                <div className="flex-grow border-t border-gray-100"></div>
               </div>
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4"><TextField id="reg-first" label="First Name" required /><TextField id="reg-last" label="Last Name" required /></div>
                 <TextField id="reg-email" label="Email Address" type="email" required />
-                <button type="submit" className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black text-lg hover:brightness-110 shadow-lg transition-all">Sign Up</button>
-                <button type="button" onClick={() => setAuthView('login')} className="w-full text-gray-500 font-bold py-2">Return to Login</button>
+                <button type="submit" className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black text-lg hover:brightness-110 shadow-lg transition-all uppercase tracking-widest italic">Sign Up</button>
+                <button type="button" onClick={() => setAuthView('login')} className="w-full text-gray-400 font-black py-2 text-xs uppercase tracking-widest text-left hover:text-tlp-pink transition">Return to Login</button>
               </form>
             </div>
           </div>
@@ -786,7 +796,9 @@ const App: React.FC = () => {
                 {!isSelectedDateBlocked && (
                   <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                     {TIME_SLOTS.map(slot => {
-                      const isSlotBlocked = Array.isArray(blockedSlots[selectedCalendarDate]) && blockedSlots[selectedCalendarDate].includes(slot);
+                      // Fix: Capture dayBlocked in local variable to narrow type before accessing .includes
+                      const dayBlocked = blockedSlots[selectedCalendarDate];
+                      const isSlotBlocked = Array.isArray(dayBlocked) && dayBlocked.includes(slot);
                       const isSlotBooked = selectedDateBookings.some(b => b.time === slot);
                       return (
                         <div key={slot} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
@@ -1183,10 +1195,60 @@ const App: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
-        <div className="mb-10 transform hover:scale-110 transition-all duration-700 cursor-pointer"><TLPLogo size="xl" /></div>
-        <div className="w-full max-w-md bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-slate-100 p-12 animate-fade-in relative overflow-hidden">{renderAuth()}</div>
-        <div className="mt-12 text-center text-gray-300 text-[10px] font-black uppercase tracking-[0.4em] max-w-sm leading-relaxed">ELITE TRAINING PLATFORM AUTHORIZED BY TRAIN LIKE PROS LLC.</div>
+      <div className="min-h-screen bg-white flex flex-col lg:flex-row overflow-hidden selection:bg-tlp-pink selection:text-white">
+        {/* Left Side: Cinematic Visual Column */}
+        <div className="hidden lg:flex lg:w-1/2 relative bg-slate-950 overflow-hidden border-r border-slate-900">
+          <img 
+            src="https://images.unsplash.com/photo-1601613583279-d2b5160be1cc?q=80&w=2000&auto=format&fit=crop" 
+            alt="Elite Training Facility" 
+            className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent"></div>
+          
+          <div className="relative z-10 flex flex-col justify-end p-20 text-white w-full">
+             <div className="mb-12">
+               <div className="w-16 h-1.5 bg-tlp-pink mb-6 rounded-full shadow-[0_0_15px_rgba(235,50,138,0.5)]"></div>
+               <h2 className="text-6xl font-black italic tracking-tighter uppercase leading-[0.9] drop-shadow-2xl">
+                 Build Your<br />
+                 <span className="text-tlp-pink text-7xl">Legacy</span><br />
+                 Today
+               </h2>
+             </div>
+             
+             <div className="flex gap-10">
+                <div>
+                   <p className="text-tlp-pink font-black text-[10px] uppercase tracking-[0.4em] mb-1">PRO-GRADE</p>
+                   <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">FACILITIES</p>
+                </div>
+                <div className="w-px h-10 bg-slate-800"></div>
+                <div>
+                   <p className="text-tlp-pink font-black text-[10px] uppercase tracking-[0.4em] mb-1">ELITE</p>
+                   <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">INSTRUCTORS</p>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        {/* Right Side: Authentication Column */}
+        <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-16 lg:p-24 overflow-y-auto bg-white min-h-screen lg:min-h-0">
+           <div className="mb-20 transform hover:scale-105 transition-all duration-500 cursor-pointer w-fit self-start">
+             <TLPLogo size="lg" />
+           </div>
+           
+           <div className="max-w-md w-full animate-fade-in flex-grow flex flex-col justify-center">
+             {renderAuth()}
+           </div>
+
+           <div className="mt-20 pt-10 border-t border-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+             <span className="text-slate-300 text-[9px] font-black uppercase tracking-[0.4em] leading-relaxed">
+               TLP AUTHORIZED ARCHITECTURE &copy; 2024
+             </span>
+             <div className="flex gap-4">
+                <i className="fab fa-instagram text-gray-200 hover:text-tlp-pink cursor-pointer transition-colors"></i>
+                <i className="fab fa-twitter text-gray-200 hover:text-tlp-pink cursor-pointer transition-colors"></i>
+             </div>
+           </div>
+        </div>
       </div>
     );
   }
