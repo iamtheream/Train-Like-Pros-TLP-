@@ -1,4 +1,3 @@
-
 import { LessonInfo } from './types';
 
 export const LESSONS: LessonInfo[] = [
@@ -7,28 +6,28 @@ export const LESSONS: LessonInfo[] = [
     label: 'Hitting Fundamentals',
     description: 'Focus on swing mechanics, bat speed, and plate discipline.',
     icon: 'fa-baseball-bat-ball',
-    price: '$75'
+    price: '$50'
   },
   {
     id: 'pitching',
     label: 'Pitching & Velocity',
     description: 'Develop mechanics, accuracy, and arm health.',
     icon: 'fa-mound',
-    price: '$85'
+    price: '$50'
   },
   {
     id: 'fielding',
     label: 'Elite Fielding',
     description: 'Master footwork, glove work, and throwing accuracy.',
     icon: 'fa-baseball',
-    price: '$65'
+    price: '$50'
   },
   {
     id: 'small-group',
     label: 'Small Group Training',
     description: 'Competitive 4-player sessions focusing on game scenarios.',
     icon: 'fa-users',
-    price: '$50'
+    price: '$60'
   }
 ];
 

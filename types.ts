@@ -3,11 +3,19 @@ export type Sport = 'baseball' | 'softball';
 
 export type LessonType = 'hitting' | 'fielding' | 'pitching' | 'small-group';
 
+export type UserRole = 'athlete' | 'parent' | 'coach';
+
+export interface TrainingSession {
+  date: string;
+  time: string;
+  lessonType: LessonType;
+  price: number;
+}
+
 export interface BookingState {
+  userType: UserRole | null;
   sport: Sport | null;
-  lessonType: LessonType | null;
-  date: string | null;
-  time: string | null;
+  selectedSessions: TrainingSession[];
   playerInfo: {
     firstName: string;
     lastName: string;

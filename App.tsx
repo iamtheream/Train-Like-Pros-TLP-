@@ -1,16 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { BookingState, Sport, LessonType } from './types.ts';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { BookingState, Sport, LessonType, TrainingSession, UserRole } from './types.ts';
 import { SPORTS_OPTIONS, LESSONS, TIME_SLOTS } from './constants.ts';
 import { getTrainingAdvice } from './services/geminiService.ts';
 
 type AuthView = 'login' | 'register' | 'forgot' | 'admin';
 type AdminTab = 'dashboard' | 'players' | 'schedule' | 'staff';
+type PaymentMethod = 'card' | 'paypal' | 'venmo';
 
 const STORAGE_KEYS = {
   PLAYERS: 'tlp_database_players',
   BOOKINGS: 'tlp_database_bookings',
   BLOCKED: 'tlp_database_blocked_slots',
   COACHES: 'tlp_database_coaches',
+  CUSTOM_SLOTS: 'tlp_database_custom_slots',
 };
 
 const TLPLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' | 'xl'; light?: boolean }> = ({ size = 'md', light = false }) => {
@@ -56,12 +58,14 @@ const TextField: React.FC<{
   value?: string;
   placeholder?: string;
   required?: boolean;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   id: string;
   min?: string;
-}> = ({ label, type = 'text', value, placeholder = ' ', required, onChange, id, min }) => {
+  children?: React.ReactNode;
+}> = ({ label, type = 'text', value, placeholder = ' ', required, onChange, id, min, children }) => {
   const isDate = type === 'date';
-  const inputRef = useRef<HTMLInputElement>(null);
+  const isSelect = type === 'select';
+  const inputRef = useRef<any>(null);
   const [internalValue, setInternalValue] = useState(value || '');
 
   useEffect(() => {
@@ -80,32 +84,44 @@ const TextField: React.FC<{
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setInternalValue(e.target.value);
     if (onChange) onChange(e);
   };
   
   return (
     <div className="relative w-full group">
-      <input
-        ref={inputRef}
-        type={type}
-        id={id}
-        value={value}
-        min={min}
-        required={required}
-        onChange={handleInputChange}
-        onClick={triggerPicker}
-        onFocus={isDate ? triggerPicker : undefined}
-        className={`block px-4 pt-6 pb-2 w-full text-base text-gray-900 bg-white rounded-xl border border-gray-300 focus:outline-none focus:ring-0 focus:border-tlp-pink peer transition-colors placeholder-transparent focus:placeholder-gray-400 ${
-          isDate ? 'cursor-pointer date-input-field' : 'appearance-none'
-        }`}
-        placeholder={placeholder}
-      />
+      {isSelect ? (
+        <select
+          id={id}
+          value={value}
+          required={required}
+          onChange={handleInputChange}
+          className="block px-4 pt-6 pb-2 w-full text-base text-gray-900 bg-white rounded-xl border border-gray-300 focus:outline-none focus:ring-0 focus:border-tlp-pink peer transition-colors appearance-none"
+        >
+          {children}
+        </select>
+      ) : (
+        <input
+          ref={inputRef}
+          type={type}
+          id={id}
+          value={value}
+          min={min}
+          required={required}
+          onChange={handleInputChange}
+          onClick={triggerPicker}
+          onFocus={isDate ? triggerPicker : undefined}
+          className={`block px-4 pt-6 pb-2 w-full text-base text-gray-900 bg-white rounded-xl border border-gray-300 focus:outline-none focus:ring-0 focus:border-tlp-pink peer transition-colors placeholder-transparent focus:placeholder-gray-400 ${
+            isDate ? 'cursor-pointer date-input-field' : 'appearance-none'
+          }`}
+          placeholder={placeholder}
+        />
+      )}
       <label
         htmlFor={id}
         className={`absolute text-sm duration-200 transform origin-[0] left-4 font-medium pointer-events-none transition-all
-          ${isDate || internalValue !== '' 
+          ${isDate || isSelect || internalValue !== '' 
             ? 'text-tlp-pink -translate-y-3 scale-75 top-4' 
             : 'text-gray-500 -translate-y-3 scale-75 top-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 peer-focus:text-tlp-pink'
           }`}
@@ -115,6 +131,11 @@ const TextField: React.FC<{
       {isDate && (
         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 peer-focus:text-tlp-pink transition-colors pt-2 z-10">
           <i className="fas fa-calendar-alt"></i>
+        </div>
+      )}
+      {isSelect && (
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 pt-2 z-10">
+          <i className="fas fa-chevron-down text-xs"></i>
         </div>
       )}
     </div>
@@ -137,7 +158,7 @@ const M3SideNavItem: React.FC<{
       }`}
     >
       {active && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-tlp-pink rounded-r-full shadow-[2px_0_8px_rgba(235,50,138,0.5)]"></div>
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-tlp-pink rounded-r-full shadow-[2px_0_8_rgba(235,50,138,0.5)]"></div>
       )}
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${
         active ? 'bg-tlp-pink text-white shadow-lg shadow-pink-100/40' : 'bg-slate-800 text-slate-400'
@@ -157,25 +178,48 @@ const App: React.FC = () => {
   const [authView, setAuthView] = useState<AuthView>('login');
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
   const [step, setStep] = useState(1);
-  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const [aiAdvice, setAiAdvice] = useState<string>('');
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
   const [adminLoginId, setAdminLoginId] = useState('');
   const [adminLoginKey, setAdminLoginKey] = useState('');
 
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState('');
+  const [activeSchedulingDate, setActiveSchedulingDate] = useState<string | null>(null);
 
-  const [isAddingCoach, setIsAddingCoach] = useState(false);
-  const [newCoach, setNewCoach] = useState({ name: '', role: '', idCode: '', securityKey: '' });
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
 
   const [dbPlayers, setDbPlayers] = useState<any[]>([]);
   const [dbBookings, setDbBookings] = useState<any[]>([]);
   const [dbCoaches, setDbCoaches] = useState<any[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<Record<string, string[] | boolean>>({});
+  const [customTimeSlots, setCustomTimeSlots] = useState<Record<string, string[]>>({});
+  
+  const [adminSelectedDate, setAdminSelectedDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+
+  const [isAdminDrawerOpen, setIsAdminDrawerOpen] = useState(false);
+  const [isAthleteDrawerOpen, setIsAthleteDrawerOpen] = useState(false);
+  const [isStaffDrawerOpen, setIsStaffDrawerOpen] = useState(false);
+  const [selectedAthlete, setSelectedAthlete] = useState<any>(null);
+  
+  const [showManualBooking, setShowManualBooking] = useState(false);
+  const [manualBookingData, setManualBookingData] = useState({
+    playerId: '',
+    time: '09:00 AM',
+    lessonId: 'hitting' as LessonType
+  });
+  const [isAddingCustomSlot, setIsAddingCustomSlot] = useState(false);
+  const [newCustomSlotTime, setNewCustomSlotTime] = useState('');
+
+  const [newStaffData, setNewStaffData] = useState({
+    name: '',
+    role: '',
+    idCode: '',
+    securityKey: ''
+  });
 
   const getTodayString = () => {
     const d = new Date();
@@ -186,19 +230,16 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const today = getTodayString();
-    setSelectedCalendarDate(today);
-
     try {
       const storedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS);
       const storedBookings = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
       const storedBlocked = localStorage.getItem(STORAGE_KEYS.BLOCKED);
       const storedCoaches = localStorage.getItem(STORAGE_KEYS.COACHES);
+      const storedCustomSlots = localStorage.getItem(STORAGE_KEYS.CUSTOM_SLOTS);
       
-      if (storedPlayers) setDbPlayers(JSON.parse(storedPlayers));
-      if (storedBookings) setDbBookings(JSON.parse(storedBookings));
-      if (storedBlocked) setBlockedSlots(JSON.parse(storedBlocked));
-      
+      const today = new Date();
+      const format = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
       if (storedCoaches) {
         setDbCoaches(JSON.parse(storedCoaches));
       } else {
@@ -209,56 +250,82 @@ const App: React.FC = () => {
         localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(initialCoaches));
       }
 
-      if (!storedPlayers) {
+      if (storedPlayers) {
+        setDbPlayers(JSON.parse(storedPlayers));
+      } else {
         const initialPlayers = [
-          { id: 'p1', name: 'Alex Rodriguez', age: 14, sessions: 12, history: ['Hitting', 'Fielding'], parent: { name: 'Enrique Rodriguez', email: 'enrique.r@email.com', phone: '(555) 123-4567' } },
-          { id: 'p2', name: 'Babe Ruth', age: 12, sessions: 8, history: ['Pitching'], parent: { name: 'George Ruth Sr.', email: 'george.ruth@email.com', phone: '(555) 987-6543' } }
+          { id: 'p1', name: 'Alex Rodriguez', age: 14, sessions: 22, history: ['Hitting Fundamentals', 'Elite Fielding', 'Hitting Fundamentals'], parent: { name: 'Enrique Rodriguez', email: 'enrique.r@email.com', phone: '(555) 123-4567' } },
+          { id: 'p2', name: 'Babe Ruth', age: 12, sessions: 18, history: ['Pitching & Velocity', 'Pitching & Velocity'], parent: { name: 'George Ruth Sr.', email: 'george.ruth@email.com', phone: '(555) 987-6543' } },
+          { id: 'p3', name: 'Derek Jeter', age: 15, sessions: 12, history: ['Elite Fielding'], parent: { name: 'Dot Jeter', email: 'dot.jeter@email.com', phone: '(555) 444-5555' } },
+          { id: 'p4', name: 'Mike Trout', age: 13, sessions: 5, history: ['Hitting Fundamentals'], parent: { name: 'Jeff Trout', email: 'jeff.trout@email.com', phone: '(555) 222-1111' } },
+          { id: 'p5', name: 'Shohei Ohtani', age: 16, sessions: 40, history: ['Pitching & Velocity', 'Hitting Fundamentals'], parent: { name: 'Toru Ohtani', email: 'toru.o@email.com', phone: '(555) 333-8888' } },
+          { id: 'p6', name: 'Mookie Betts', age: 14, sessions: 15, history: ['Hitting Fundamentals', 'Elite Fielding'], parent: { name: 'Diana Betts', email: 'd.betts@email.com', phone: '(555) 777-9999' } }
         ];
         setDbPlayers(initialPlayers);
         localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(initialPlayers));
       }
 
-      if (!storedBookings) {
-        const initialBookings = [
-          { id: 1, player: 'Alex Rodriguez', time: '09:00 AM', date: '2024-05-20', lesson: 'Hitting', status: 'Confirmed' }
-        ];
+      if (storedBookings) {
+        setDbBookings(JSON.parse(storedBookings));
+      } else {
+        const initialBookings = [];
         setDbBookings(initialBookings);
         localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(initialBookings));
+      }
+
+      if (storedBlocked) {
+        setBlockedSlots(JSON.parse(storedBlocked));
+      } else {
+        const initialBlocked = {};
+        setBlockedSlots(initialBlocked);
+        localStorage.setItem(STORAGE_KEYS.BLOCKED, JSON.stringify(initialBlocked));
+      }
+
+      if (storedCustomSlots) {
+        setCustomTimeSlots(JSON.parse(storedCustomSlots));
+      } else {
+        const initialCustom = {};
+        setCustomTimeSlots(initialCustom);
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_SLOTS, JSON.stringify(initialCustom));
       }
     } catch (e) {
       console.error("Critical: Failed to load persistent data", e);
     }
   }, []);
+
+  useEffect(() => {
+    if (step === 2 && !activeSchedulingDate) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+      setActiveSchedulingDate(dateStr);
+      setCurrentCalendarDate(tomorrow);
+    }
+  }, [step, activeSchedulingDate]);
   
   const [booking, setBooking] = useState<BookingState>({
+    userType: null,
     sport: null,
-    lessonType: null,
-    date: null,
-    time: null,
-    playerInfo: {
-      firstName: '',
-      lastName: '',
-      age: '',
-      parentName: '',
-      parentEmail: '',
-      parentPhone: '',
-      notes: ''
-    }
+    selectedSessions: [],
+    playerInfo: { firstName: '', lastName: '', age: '', parentName: '', parentEmail: '', parentPhone: '', notes: '' }
   });
 
+  const totalInvestment = useMemo(() => {
+    return booking.selectedSessions.reduce((acc, s) => acc + s.price, 0);
+  }, [booking.selectedSessions]);
+
   const fetchAdvice = async () => {
-    if (booking.lessonType) {
+    if (booking.selectedSessions.length > 0) {
       setLoadingAdvice(true);
-      const profile = `Interested in ${booking.sport} ${booking.lessonType}. Player age is ${booking.playerInfo.age || 'unknown'}. Additional notes: ${booking.playerInfo.notes}`;
-      const advice = await getTrainingAdvice(profile);
-      setAiAdvice(advice || '');
+      const profile = `Interested in ${booking.sport}. Selected ${booking.selectedSessions.length} sessions. Player age is ${booking.playerInfo.age || 'unknown'}. Additional notes: ${booking.playerInfo.notes}`;
+      await getTrainingAdvice(profile);
       setLoadingAdvice(false);
     }
   };
 
   const nextStep = () => {
-    if (step === 3) fetchAdvice();
-    setStep(prev => Math.min(prev + 1, 4));
+    if (step === 2) fetchAdvice();
+    setStep(prev => Math.min(prev + 1, 3));
   };
   
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
@@ -267,58 +334,62 @@ const App: React.FC = () => {
     setBooking(prev => ({ ...prev, ...updates }));
   };
 
+  const toggleSession = (date: string, time: string, type: '1:1' | 'Group', price: number, lessonId: LessonType) => {
+    const exists = booking.selectedSessions.find(s => s.date === date && s.time === time);
+    if (exists) {
+      updateBooking({
+        selectedSessions: booking.selectedSessions.filter(s => !(s.date === date && s.time === time))
+      });
+    } else {
+      updateBooking({
+        selectedSessions: [...booking.selectedSessions, { date, time, lessonType: lessonId, price }]
+      });
+    }
+  };
+
   const handleCompleteAuthorization = () => {
+    if (!booking.playerInfo.firstName || !booking.playerInfo.lastName) {
+      alert("Please enter the athlete's full name to authorize.");
+      return;
+    }
     const fullName = `${booking.playerInfo.firstName} ${booking.playerInfo.lastName}`;
-    const newId = `p_${Date.now()}`;
-    
-    const existingPlayerIndex = dbPlayers.findIndex(p => p.name.toLowerCase() === fullName.toLowerCase());
-    
     let updatedPlayers = [...dbPlayers];
+    const existingPlayerIndex = dbPlayers.findIndex(p => p.name.toLowerCase() === fullName.toLowerCase());
     if (existingPlayerIndex >= 0) {
       updatedPlayers[existingPlayerIndex] = {
         ...updatedPlayers[existingPlayerIndex],
-        sessions: updatedPlayers[existingPlayerIndex].sessions + 1,
-        history: [...updatedPlayers[existingPlayerIndex].history, LESSONS.find(l => l.id === booking.lessonType)?.label || 'Training']
+        sessions: updatedPlayers[existingPlayerIndex].sessions + booking.selectedSessions.length,
+        history: [...updatedPlayers[existingPlayerIndex].history, ...booking.selectedSessions.map(s => LESSONS.find(l => l.id === s.lessonType)?.label || 'Training')]
       };
     } else {
       updatedPlayers.push({
-        id: newId,
+        id: `p_${Date.now()}`,
         name: fullName,
-        age: parseInt(booking.playerInfo.age),
-        sessions: 1,
-        history: [LESSONS.find(l => l.id === booking.lessonType)?.label || 'Training'],
-        parent: {
-          name: booking.playerInfo.parentName,
-          email: booking.playerInfo.parentEmail,
-          phone: booking.playerInfo.parentPhone
-        }
+        age: parseInt(booking.playerInfo.age || '0'),
+        sessions: booking.selectedSessions.length,
+        history: booking.selectedSessions.map(s => LESSONS.find(l => l.id === s.lessonType)?.label || 'Training'),
+        parent: { name: booking.playerInfo.parentName, email: booking.playerInfo.parentEmail, phone: booking.playerInfo.parentPhone }
       });
     }
-
-    const newBooking = {
-      id: Date.now(),
+    const newBookings = booking.selectedSessions.map((s, idx) => ({
+      id: Date.now() + idx,
       player: fullName,
-      time: booking.time,
-      date: booking.date,
-      lesson: LESSONS.find(l => l.id === booking.lessonType)?.label || 'Training',
+      time: s.time,
+      date: s.date,
+      lesson: LESSONS.find(l => l.id === s.lessonType)?.label || 'Training',
       status: 'Confirmed'
-    };
-
-    const updatedBookings = [...dbBookings, newBooking];
-
+    }));
+    const updatedBookingsList = [...dbBookings, ...newBookings];
     setDbPlayers(updatedPlayers);
-    setDbBookings(updatedBookings);
-    
+    setDbBookings(updatedBookingsList);
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(updatedPlayers));
-    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updatedBookings));
-
-    alert('Booking Authorized! Your athlete profile has been synchronized.');
+    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updatedBookingsList));
+    alert(`Confirmed! ${booking.selectedSessions.length} training sessions have been added to the athlete's profile.`);
     setStep(1);
     setBooking({
+      userType: null,
       sport: null,
-      lessonType: null,
-      date: null,
-      time: null,
+      selectedSessions: [],
       playerInfo: { firstName: '', lastName: '', age: '', parentName: '', parentEmail: '', parentPhone: '', notes: '' }
     });
   };
@@ -334,28 +405,85 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.BLOCKED, JSON.stringify(updated));
   };
 
-  const toggleBlockedSlot = (date: string, slot: string) => {
-    const updated = { ...blockedSlots };
-    const current = updated[date];
-    
-    if (current === true) return; 
-
-    if (!current || !Array.isArray(current)) {
-      updated[date] = [slot];
-    } else {
-      if (current.includes(slot)) {
-        const filtered = current.filter(s => s !== slot);
-        if (filtered.length === 0) {
-          delete updated[date];
-        } else {
-          updated[date] = filtered;
-        }
-      } else {
-        updated[date] = [...current, slot];
-      }
+  const addCustomTimeSlot = (date: string, time: string) => {
+    if (!time) return;
+    const updated = { ...customTimeSlots };
+    if (!updated[date]) updated[date] = [];
+    if (!updated[date].includes(time)) {
+      updated[date] = [...updated[date], time];
     }
-    setBlockedSlots(updated);
-    localStorage.setItem(STORAGE_KEYS.BLOCKED, JSON.stringify(updated));
+    setCustomTimeSlots(updated);
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_SLOTS, JSON.stringify(updated));
+    setNewCustomSlotTime('');
+    setIsAddingCustomSlot(false);
+  };
+
+  const removeCustomTimeSlot = (date: string, time: string) => {
+    const updated = { ...customTimeSlots };
+    if (updated[date]) {
+      updated[date] = updated[date].filter(t => t !== time);
+      if (updated[date].length === 0) delete updated[date];
+    }
+    setCustomTimeSlots(updated);
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_SLOTS, JSON.stringify(updated));
+  };
+
+  const handleManualBookingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualBookingData.playerId) {
+      alert("Please select an athlete.");
+      return;
+    }
+    const athlete = dbPlayers.find(p => p.id === manualBookingData.playerId);
+    if (!athlete) return;
+    const newBooking = {
+      id: Date.now(),
+      player: athlete.name,
+      time: manualBookingData.time,
+      date: adminSelectedDate,
+      lesson: LESSONS.find(l => l.id === manualBookingData.lessonId)?.label || 'Training',
+      status: 'Confirmed'
+    };
+    const updatedBookings = [...dbBookings, newBooking];
+    setDbBookings(updatedBookings);
+    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updatedBookings));
+    const updatedPlayers = dbPlayers.map(p => {
+      if (p.id === athlete.id) {
+        return {
+          ...p,
+          sessions: (p.sessions || 0) + 1,
+          history: [...(p.history || []), newBooking.lesson]
+        };
+      }
+      return p;
+    });
+    setDbPlayers(updatedPlayers);
+    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(updatedPlayers));
+    setShowManualBooking(false);
+    alert(`Successfully scheduled ${athlete.name} for ${newBooking.time}.`);
+  };
+
+  const handleAddStaff = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newStaff = {
+      ...newStaffData,
+      id: `c_${Date.now()}`,
+      idCode: newStaffData.idCode.toUpperCase()
+    };
+    const updatedCoaches = [...dbCoaches, newStaff];
+    setDbCoaches(updatedCoaches);
+    localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(updatedCoaches));
+    setNewStaffData({ name: '', role: '', idCode: '', securityKey: '' });
+    setIsStaffDrawerOpen(false);
+    alert(`Successfully onboarded ${newStaff.name} as ${newStaff.role}.`);
+  };
+
+  const handleRemoveStaff = (staffId: string, staffName: string) => {
+    if (window.confirm(`Are you sure you want to revoke access for ${staffName}?`)) {
+      const updatedCoaches = dbCoaches.filter(c => c.id !== staffId);
+      setDbCoaches(updatedCoaches);
+      localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(updatedCoaches));
+    }
   };
 
   const handleLogin = (e: React.FormEvent, type: 'user' | 'admin' = 'user') => {
@@ -363,21 +491,15 @@ const App: React.FC = () => {
     if (type === 'admin') {
       const cleanId = adminLoginId.trim().toUpperCase();
       const cleanKey = adminLoginKey.trim();
-
-      const coach = dbCoaches.find(c => 
-        c.idCode.trim().toUpperCase() === cleanId && 
-        c.securityKey.trim() === cleanKey
-      );
-      
+      // Validating against the dynamic "database" (dbCoaches state)
+      const coach = dbCoaches.find(c => c.idCode.trim().toUpperCase() === cleanId && c.securityKey.trim() === cleanKey);
       if (coach) {
         setIsAuthenticated(true);
         setIsAdmin(true);
         setActiveCoach(coach);
         setIsGuest(false);
-        setAdminLoginId('');
-        setAdminLoginKey('');
       } else {
-        alert('Access Denied. Check ID and Key.');
+        alert('Access Denied. Credentials not found in staff roster.');
       }
     } else {
       setIsAuthenticated(true);
@@ -386,205 +508,251 @@ const App: React.FC = () => {
     }
   };
 
-  const handleGoogleLogin = () => {
-    setIsAuthenticated(true);
-    setIsAdmin(false);
-    setIsGuest(false);
-  };
-
   const handleBackToLogin = () => {
     setIsAuthenticated(false);
     setIsAdmin(false);
-    setActiveCoach(null);
-    setIsGuest(false);
-    setAuthView('login');
-    setAdminTab('dashboard');
-    setIsDrawerOpen(false);
-    setIsAccountOpen(false);
     setStep(1); 
   };
 
-  const getAvailableTimeSlots = () => {
-    if (!booking.date) return [];
-    if (blockedSlots[booking.date] === true) return [];
-
-    const dateObj = new Date(booking.date + 'T00:00:00');
+  const getAvailableTimeSlots = (date: string) => {
+    if (!date) return [];
+    // Database connection: respect facility closures
+    if (blockedSlots[date] === true) return [];
+    
+    const dateObj = new Date(date + 'T00:00:00');
     const day = dateObj.getDay();
     const isWeekend = day === 0 || day === 6;
-    const isSmallGroup = booking.lessonType === 'small-group';
-
-    let defaultSlots = [];
+    let slots = [];
+    
     if (isWeekend) {
-      defaultSlots = ['01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM', '07:00 PM', '08:00 PM'];
+      slots = ['01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM', '07:00 PM', '08:00 PM'].map(t => ({
+        time: t, type: '1:1' as const, price: 50, lessonId: 'hitting' as LessonType
+      }));
     } else {
-      if (isSmallGroup) {
-        defaultSlots = ['04:30 PM', '06:30 PM'];
-      } else {
-        defaultSlots = ['01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM'];
-      }
+      const privateSlots = ['01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM'].map(t => ({
+        time: t, type: '1:1' as const, price: 50, lessonId: 'hitting' as LessonType
+      }));
+      const groupSlots = ['04:30 PM', '06:00 PM'].map(t => ({
+        time: t, type: 'Group' as const, price: 60, lessonId: 'small-group' as LessonType
+      }));
+      slots = [...privateSlots, ...groupSlots];
+    }
+    
+    // Database connection: respect staff-added shifts
+    if (customTimeSlots[date]) {
+      const customOnes = customTimeSlots[date].map(t => ({
+        time: t, type: '1:1' as const, price: 50, lessonId: 'hitting' as LessonType
+      }));
+      const existingTimes = slots.map(s => s.time);
+      const filteredCustoms = customOnes.filter(c => !existingTimes.includes(c.time));
+      slots = [...slots, ...filteredCustoms];
     }
 
-    const dayBlockedSlots = blockedSlots[booking.date];
-    if (Array.isArray(dayBlockedSlots)) {
-      defaultSlots = defaultSlots.filter(s => !dayBlockedSlots.includes(s));
-    }
+    // Database connection: Filter out already reserved slots
+    const bookedTimesOnDate = dbBookings
+      .filter(b => b.date === date)
+      .map(b => b.time);
 
-    return defaultSlots;
+    return slots
+      .filter(s => !bookedTimesOnDate.includes(s.time))
+      .sort((a, b) => {
+        const parseTime = (t: string) => {
+          let [time, modifier] = t.split(' ');
+          let [hours, minutes] = time.split(':').map(Number);
+          if (modifier === 'PM' && hours !== 12) hours += 12;
+          if (modifier === 'AM' && hours === 12) hours = 0;
+          return hours * 60 + minutes;
+        };
+        return parseTime(a.time) - parseTime(b.time);
+      });
   };
 
-  const openPlayerProfile = (player: any) => {
-    setSelectedPlayer(player);
-    setIsDrawerOpen(true);
-  };
-
-  const renderAuth = () => {
-    switch (authView) {
-      case 'login':
+  const renderPlayerSteps = () => {
+    switch (step) {
+      case 1:
         return (
-          <div className="space-y-6">
-            <div className="text-left mb-8">
-              <h2 className="text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase italic">TRAIN LIKE PROS</h2>
-              <p className="text-gray-500 mt-3 font-medium text-lg">Log in to your elite member portal</p>
+          <div className="space-y-12">
+            <div className="space-y-6">
+              <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Tell us who you are</h2>
+              <div className="flex flex-wrap justify-center gap-4">
+                {(['athlete', 'parent', 'coach'] as UserRole[]).map(role => (
+                  <button key={role} onClick={() => updateBooking({ userType: role })} className={`px-8 py-4 rounded-2xl border-2 font-black uppercase tracking-widest italic transition-all ${booking.userType === role ? 'bg-tlp-pink text-white border-tlp-pink shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-tlp-pink/30'}`}>{role === 'athlete' ? 'Elite Athlete' : role === 'parent' ? 'Parent / Guardian' : 'Coach / Instructor'}</button>
+                ))}
+              </div>
             </div>
-            <form onSubmit={(e) => handleLogin(e, 'user')} className="space-y-5">
-              <TextField id="login-email" label="Email Address" type="email" required />
-              <TextField id="login-password" label="Password" type="password" required />
-              <button type="submit" className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black text-lg hover:brightness-110 shadow-lg shadow-pink-100 transition-all uppercase tracking-widest italic">
-                Sign In
-              </button>
-            </form>
-            <div className="pt-2">
-              <GoogleLoginButton label="Continue with Google" onClick={handleGoogleLogin} />
-            </div>
-            <div className="relative flex py-4 items-center">
-              <div className="flex-grow border-t border-gray-100"></div>
-              <span className="flex-shrink mx-4 text-gray-300 text-[10px] font-black uppercase tracking-widest">OR</span>
-              <div className="flex-grow border-t border-gray-100"></div>
-            </div>
-            <button onClick={() => { setIsAuthenticated(true); setIsGuest(true); }} className="w-full border-2 border-gray-100 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
-              <i className="fas fa-user-clock text-gray-300"></i> Continue as Guest
+            {booking.userType && (
+              <div className="space-y-6 animate-fade-in">
+                <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Select Discipline</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {SPORTS_OPTIONS.map(option => (
+                    <button key={option.id} onClick={() => { updateBooking({ sport: option.id as Sport }); nextStep(); }} className={`p-8 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-4 ${booking.sport === option.id ? 'border-tlp-pink bg-pink-50' : 'border-gray-100 hover:border-pink-200'}`}>
+                      <i className={`fas ${option.icon} text-3xl ${option.id === 'softball' ? 'text-yellow-400' : 'text-slate-900'}`}></i>
+                      <span className="text-xl font-black text-gray-800 uppercase italic">{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      case 2:
+        const daysInMonth = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth() + 1, 0).getDate();
+        const firstDayOfMonth = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), 1).getDay();
+        const monthName = currentCalendarDate.toLocaleString('default', { month: 'long' });
+        const year = currentCalendarDate.getFullYear();
+        const slots = getAvailableTimeSlots(activeSchedulingDate || '');
+        const calendarDays = [];
+        for (let i = 0; i < firstDayOfMonth; i++) calendarDays.push(<div key={`empty-${i}`} className="h-16 bg-slate-50/30"></div>);
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dateStr = `${year}-${String(currentCalendarDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const isSelected = activeSchedulingDate === dateStr;
+          const hasSelectionOnDate = booking.selectedSessions.some(s => s.date === dateStr);
+          const isPast = new Date(dateStr) < new Date(getTodayString());
+          const isBlocked = blockedSlots[dateStr] === true;
+          calendarDays.push(
+            <button key={d} disabled={isBlocked || isPast} onClick={() => setActiveSchedulingDate(dateStr)} className={`h-16 border border-slate-50 flex flex-col items-center justify-center transition-all relative ${isSelected ? 'bg-tlp-pink text-white shadow-lg z-10 scale-105 rounded-xl' : isBlocked || isPast ? 'bg-slate-100/50 opacity-30 cursor-not-allowed' : 'bg-white hover:bg-slate-50'}`}>
+              <span className={`text-sm font-black ${isSelected ? 'text-white' : 'text-slate-900'}`}>{d}</span>
+              {hasSelectionOnDate && !isSelected && <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-tlp-pink"></div>}
             </button>
-            <div className="text-left pt-6 border-t border-gray-100 space-y-4">
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-gray-500 font-medium">New athlete? <button onClick={() => setAuthView('register')} className="font-black text-tlp-pink hover:underline uppercase tracking-tight">Create Account</button></p>
-                <button onClick={() => setAuthView('admin')} className="w-fit text-[11px] font-black text-slate-400 hover:text-tlp-pink uppercase tracking-[0.25em] transition-colors flex items-center gap-2">
-                   <i className="fas fa-user-shield"></i> Coach Terminal Entry
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      case 'admin':
+          );
+        }
         return (
-          <div className="space-y-6">
-            <div className="text-left mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-pink-50 text-tlp-pink rounded-3xl mb-6 shadow-inner">
-                <i className="fas fa-user-shield text-2xl"></i>
+          <div className="animate-fade-in">
+            <div className="flex flex-col lg:flex-row gap-10 items-start">
+              <div className="w-full lg:flex-[7] space-y-6">
+                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden">
+                  <div className="p-4 border-b flex justify-between items-center bg-slate-50/50">
+                    <span className="text-sm font-black italic uppercase text-slate-700">{monthName} {year}</span>
+                    <div className="flex gap-1">
+                      <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() - 1))} className="p-2 text-slate-400 hover:text-tlp-pink"><i className="fas fa-chevron-left text-xs"></i></button>
+                      <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() + 1))} className="p-2 text-slate-400 hover:text-tlp-pink"><i className="fas fa-chevron-right text-xs"></i></button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-7 border-b text-center py-2">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d} className="text-[9px] font-black text-slate-400">{d}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7">{calendarDays}</div>
+                </div>
               </div>
-              <h2 className="text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase italic">COACH ACCESS</h2>
-              <p className="text-gray-500 mt-3 font-medium text-lg">Authorize TLP Coaching Terminal</p>
+              <div className="w-full lg:flex-[5] space-y-8">
+                {activeSchedulingDate && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2"><span className="text-[10px] font-black text-tlp-pink uppercase tracking-widest">{activeSchedulingDate}</span></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {slots.length > 0 ? slots.map(slot => {
+                        const isActive = booking.selectedSessions.some(s => s.date === activeSchedulingDate && s.time === slot.time);
+                        return (
+                          <button key={slot.time} onClick={() => toggleSession(activeSchedulingDate, slot.time, slot.type, slot.price, slot.lessonId)} className={`group relative p-4 rounded-2xl border-2 transition-all flex flex-col gap-2 ${isActive ? 'bg-slate-950 border-slate-950 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-600 hover:border-tlp-pink'}`}>
+                            <div className="flex justify-between items-center"><span className="font-black text-sm italic">{slot.time}</span><span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${isActive ? 'bg-tlp-pink text-white' : 'bg-slate-100 text-slate-400'}`}>${slot.price}</span></div>
+                            <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-tlp-pink' : 'bg-slate-200 group-hover:bg-tlp-pink'}`}></div><span className="text-[9px] font-black uppercase tracking-widest">{slot.type === 'Group' ? 'Group (90m)' : 'Private (60m)'}</span></div>
+                          </button>
+                        );
+                      }) : <div className="col-span-full py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center"><p className="text-[10px] font-black text-slate-400 uppercase italic tracking-widest">Facility Closed or Fully Booked</p></div>}
+                    </div>
+                  </div>
+                )}
+                {booking.selectedSessions.length > 0 && (
+                  <div className="bg-slate-50 rounded-3xl p-6 space-y-5 border border-slate-100 animate-fade-in">
+                    <div className="flex items-center justify-between"><h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Selection Summary</h3><span className="text-[10px] font-black text-tlp-pink uppercase tracking-widest">{booking.selectedSessions.length} Sessions</span></div>
+                    <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                      {booking.selectedSessions.map((s, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-200/50">
+                          <div><p className="text-[10px] font-black text-slate-900 uppercase italic">{s.date} @ {s.time}</p><p className="text-[9px] font-bold text-slate-400 uppercase">{s.lessonType === 'small-group' ? 'Group Training' : 'Private Focus'}</p></div>
+                          <span className="text-[10px] font-black text-slate-900">${s.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center pt-3 border-t border-slate-200"><span className="text-xs font-black text-slate-900 uppercase">Total Investment</span><span className="text-lg font-black text-tlp-pink">${totalInvestment}</span></div>
+                    <button onClick={nextStep} className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] shadow-xl hover:brightness-110 transition-all italic text-sm">Continue</button>
+                  </div>
+                )}
+              </div>
             </div>
-            <form onSubmit={(e) => handleLogin(e, 'admin')} className="space-y-5">
-              <TextField 
-                id="admin-id" 
-                label="Coach ID" 
-                required 
-                value={adminLoginId} 
-                onChange={(e) => setAdminLoginId(e.target.value)} 
-              />
-              <TextField 
-                id="admin-password" 
-                label="Security Key" 
-                type="password" 
-                required 
-                value={adminLoginKey} 
-                onChange={(e) => setAdminLoginKey(e.target.value)} 
-              />
-              <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-lg hover:bg-black shadow-lg transition-all uppercase tracking-widest italic">
-                Authorize Session
-              </button>
-              <button type="button" onClick={() => setAuthView('login')} className="w-full text-slate-500 font-black py-2 hover:text-tlp-pink transition text-xs uppercase tracking-[0.2em] text-left flex items-center gap-2">
-                <i className="fas fa-arrow-left"></i> Back to Player Site
-              </button>
-            </form>
           </div>
         );
-      case 'register':
+      case 3:
         return (
-          <div className="space-y-6">
-            <div className="text-left mb-8">
-              <h2 className="text-4xl font-black text-gray-900 tracking-tight leading-tight uppercase italic">JOIN TLP ELITE</h2>
-              <p className="text-gray-500 mt-3 font-medium text-lg">Start your professional training path</p>
-            </div>
-            <div className="space-y-5">
-              <GoogleLoginButton label="Sign up with Google" onClick={handleGoogleLogin} />
-              <div className="relative flex py-4 items-center">
-                <div className="flex-grow border-t border-gray-100"></div>
-                <span className="flex-shrink mx-4 text-gray-300 text-[10px] font-black uppercase tracking-widest">OR MANUAL ENTRY</span>
-                <div className="flex-grow border-t border-gray-100"></div>
+          <div className="space-y-8 animate-fade-in">
+            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Final Authorization</h2>
+            <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6">
+              <div className="flex justify-between items-start border-b border-slate-200/60 pb-6">
+                <div><p className="text-[10px] font-black text-slate-400 uppercase mb-1">Training Roster</p><h3 className="text-lg font-black text-slate-900 uppercase italic">{booking.sport} Elite Development</h3></div>
+                <div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Investment</p><h3 className="text-xl font-black text-tlp-pink">${totalInvestment}</h3></div>
               </div>
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="grid grid-cols-2 gap-4"><TextField id="reg-first" label="First Name" required /><TextField id="reg-last" label="Last Name" required /></div>
-                <TextField id="reg-email" label="Email Address" type="email" required />
-                <button type="submit" className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black text-lg hover:brightness-110 shadow-lg transition-all uppercase tracking-widest italic">Sign Up</button>
-                <button type="button" onClick={() => setAuthView('login')} className="w-full text-slate-500 font-black py-2 text-xs uppercase tracking-widest text-left hover:text-tlp-pink transition">Return to Login</button>
-              </form>
+              <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {booking.selectedSessions.map((s, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-3 bg-white px-4 rounded-xl border border-slate-100 shadow-sm">
+                    <div><p className="text-[10px] font-black text-slate-900 uppercase italic">{s.date} @ {s.time}</p><p className="text-[9px] font-bold text-slate-400 uppercase">{s.lessonType === 'small-group' ? 'Group Training' : 'Private Focus'}</p></div>
+                    <span className="text-xs font-black text-tlp-pink">${s.price}</span>
+                  </div>
+                ))}
+              </div>
             </div>
+            <div className="space-y-6">
+               <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Athlete Information</h3>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <TextField id="p-first" label="Athlete First Name" value={booking.playerInfo.firstName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, firstName: e.target.value }})} required />
+                  <TextField id="p-last" label="Athlete Last Name" value={booking.playerInfo.lastName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, lastName: e.target.value }})} required />
+                  <TextField id="p-age" label="Athlete Age" type="number" value={booking.playerInfo.age} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, age: e.target.value }})} required />
+               </div>
+               {booking.userType !== 'athlete' && (
+                 <>
+                   <div className="border-t border-slate-100 my-8"></div>
+                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Parent / Coach Information</h3>
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <TextField id="p-parent" label="Parent/Guardian Name" value={booking.playerInfo.parentName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, parentName: e.target.value }})} required />
+                      <TextField id="p-email" label="Contact Email" type="email" value={booking.playerInfo.parentEmail} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, parentEmail: e.target.value }})} required />
+                      <TextField id="p-phone" label="Contact Phone" type="tel" value={booking.playerInfo.parentPhone} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, parentPhone: e.target.value }})} required />
+                   </div>
+                 </>
+               )}
+               <div className="pt-2"><TextField id="p-notes" label="Special Instructions / Training Notes" value={booking.playerInfo.notes} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, notes: e.target.value }})} /></div>
+            </div>
+            <div className="border-t border-slate-100 my-8"></div>
+            <div className="space-y-6">
+               <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Payment Information</h3>
+               <div className="grid grid-cols-3 gap-3 mb-6">
+                  <button onClick={() => setPaymentMethod('card')} className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'card' ? 'border-tlp-pink bg-pink-50 text-tlp-pink' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}><i className="fas fa-credit-card text-xl"></i><span className="text-[9px] font-black uppercase tracking-widest">Credit Card</span></button>
+                  <button onClick={() => setPaymentMethod('paypal')} className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'paypal' ? 'border-tlp-pink bg-pink-50 text-tlp-pink' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}><i className="fab fa-paypal text-xl"></i><span className="text-[9px] font-black uppercase tracking-widest">PayPal</span></button>
+                  <button onClick={() => setPaymentMethod('venmo')} className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === 'venmo' ? 'border-tlp-pink bg-pink-50 text-tlp-pink' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}><i className="fas fa-mobile-alt text-xl"></i><span className="text-[9px] font-black uppercase tracking-widest">Venmo</span></button>
+               </div>
+               {paymentMethod === 'card' ? (
+                 <div className="space-y-4 animate-fade-in"><TextField id="card-num" label="Card Number" placeholder="0000 0000 0000 0000" /><div className="grid grid-cols-2 gap-4"><TextField id="card-expiry" label="Expiration date" placeholder="MM/YY" /><TextField id="card-cvv" label="CVV" placeholder="123" /></div></div>
+               ) : (
+                 <div className="py-6 px-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center animate-fade-in">
+                    <p className="text-xs font-bold text-slate-500 mb-2 uppercase italic tracking-widest">{paymentMethod === 'paypal' ? 'Proceeding to Secure PayPal Terminal' : 'Proceeding to Venmo Verification'}</p>
+                    <p className="text-[10px] text-slate-400 leading-relaxed max-w-xs mx-auto">You will be redirected to complete your authorization securely after clicking "Authorize Training" below.</p>
+                 </div>
+               )}
+            </div>
+            <button onClick={handleCompleteAuthorization} className="w-full bg-tlp-pink text-white py-6 rounded-2xl font-black text-xl hover:brightness-110 shadow-2xl transition-all uppercase tracking-widest italic flex items-center justify-center gap-3 mt-4"><i className="fas fa-lock text-sm opacity-50"></i> Authorize ${totalInvestment} Training</button>
           </div>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 
   const renderAdminDashboard = () => (
     <div className="space-y-8 animate-fade-in">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-tlp-pink rounded-3xl p-6 text-white shadow-xl shadow-pink-100">
-          <p className="text-pink-100 text-[10px] font-black uppercase tracking-widest mb-1">Total Pro-Turns</p>
-          <h3 className="text-4xl font-black">{dbPlayers.reduce((acc, p) => acc + p.sessions, 0)}</h3>
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm cursor-pointer hover:border-tlp-pink transition" onClick={() => setAdminTab('players')}>
-          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Active Athletes</p>
-          <h3 className="text-4xl font-black text-gray-800">{dbPlayers.length}</h3>
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Session Volume</p>
-          <h3 className="text-4xl font-black text-gray-800">{dbBookings.filter(b => b.date === getTodayString()).length}</h3>
-        </div>
+        <div className="bg-tlp-pink rounded-3xl p-6 text-white shadow-xl shadow-pink-100"><p className="text-pink-100 text-[10px] font-black uppercase tracking-widest mb-1">Total Pro-Turns</p><h3 className="text-4xl font-black">{dbPlayers.reduce((acc, p) => acc + (p.sessions || 0), 0)}</h3></div>
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm cursor-pointer hover:border-tlp-pink transition"><p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Active Athletes</p><h3 className="text-4xl font-black text-gray-800">{dbPlayers.length}</h3></div>
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm"><p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Today's Sessions</p><h3 className="text-4xl font-black text-gray-800">{dbBookings.filter(b => b.date === getTodayString()).length}</h3></div>
       </div>
     </div>
   );
 
   const renderAdminPlayers = () => (
     <div className="space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+      <div className="flex justify-between items-center">
         <h2 className="text-2xl font-black text-gray-800 tracking-tight italic uppercase">Athlete Roster</h2>
+        <div className="bg-slate-100 px-4 py-2 rounded-full"><span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{dbPlayers.length} Members</span></div>
       </div>
-
       <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Athlete</th>
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Turns</th>
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Bio</th>
-                <th className="px-8 py-4"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {dbPlayers.map(player => (
-                <tr key={player.id} className="hover:bg-gray-50/50 transition">
-                  <td className="px-8 py-6 font-black text-gray-800">{player.name}</td>
-                  <td className="px-8 py-6 font-black text-tlp-pink">{player.sessions}</td>
-                  <td className="px-8 py-6 text-xs text-slate-500">{player.parent.name} • {player.parent.phone}</td>
-                  <td className="px-8 py-6 text-right">
-                    <button onClick={() => openPlayerProfile(player)} className="px-4 py-2 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-tlp-pink transition">Inspect</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+          <table className="w-full text-left">
+            <thead><tr className="bg-gray-50"><th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Athlete</th><th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Total Sessions</th><th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Parental Contact</th><th className="px-8 py-4 text-right"></th></tr></thead>
+            <tbody className="divide-y divide-gray-100">{dbPlayers.map(p => (<tr key={p.id} className="hover:bg-gray-50/50 transition"><td className="px-8 py-6 font-black text-gray-800 uppercase italic text-sm">{p.name}</td><td className="px-8 py-6 font-black text-tlp-pink">{p.sessions}</td><td className="px-8 py-6 text-xs text-slate-500 font-medium uppercase tracking-tight">{p.parent.name} <br/><span className="text-[10px] opacity-70">{p.parent.phone}</span></td><td className="px-8 py-6 text-right"><button onClick={() => { setSelectedAthlete(p); setIsAthleteDrawerOpen(true); }} className="px-4 py-2 border-2 border-slate-900 bg-white text-slate-900 rounded-xl text-[10px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all shadow-sm">View Details</button></td></tr>))}</tbody>
           </table>
         </div>
       </div>
@@ -596,200 +764,318 @@ const App: React.FC = () => {
     const firstDayOfMonth = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), 1).getDay();
     const monthName = currentCalendarDate.toLocaleString('default', { month: 'long' });
     const year = currentCalendarDate.getFullYear();
-
     const calendarDays = [];
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      calendarDays.push(<div key={`empty-${i}`} className="h-24 bg-slate-50/30"></div>);
-    }
-
+    for (let i = 0; i < firstDayOfMonth; i++) calendarDays.push(<div key={`empty-${i}`} className="min-h-[140px] bg-slate-50/30 border border-slate-100/50"></div>);
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(currentCalendarDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const isSelected = selectedCalendarDate === dateStr;
+      const isSelected = adminSelectedDate === dateStr;
       const isBlocked = blockedSlots[dateStr] === true;
-
+      const dayBookings = dbBookings.filter(b => b.date === dateStr);
       calendarDays.push(
-        <div 
-          key={d} 
-          onClick={() => setSelectedCalendarDate(dateStr)}
-          className={`h-24 border border-slate-100 p-2 cursor-pointer transition-all ${isSelected ? 'bg-pink-50 ring-1 ring-inset ring-tlp-pink' : 'hover:bg-slate-50'} ${isBlocked ? 'bg-red-50' : ''}`}
-        >
-          <span className={`text-xs font-black ${isSelected ? 'text-tlp-pink' : 'text-slate-900'}`}>{d}</span>
-          {isBlocked && <div className="text-[8px] bg-red-500 text-white px-1 mt-1 rounded text-center font-black">OFF</div>}
-        </div>
+        <button key={d} onClick={() => { setAdminSelectedDate(dateStr); setIsAdminDrawerOpen(true); }} className={`min-h-[140px] border border-slate-100 p-2 flex flex-col transition-all relative text-left group overflow-hidden ${isSelected ? 'bg-tlp-pink/10 border-tlp-pink z-10 shadow-sm' : isBlocked ? 'bg-red-50/70' : 'bg-white hover:bg-slate-50'}`}>
+          <div className="flex justify-between items-start w-full mb-2"><span className={`text-sm font-black ${isSelected ? 'text-tlp-pink' : 'text-slate-900'}`}>{d}</span>{isBlocked && <div className="text-[7px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-black uppercase tracking-wider">Closed</div>}</div>
+          <div className="flex-grow space-y-1 w-full overflow-hidden">
+            {dayBookings.slice(0, 3).map(b => (<div key={b.id} className="text-[7px] leading-tight font-bold text-slate-700 bg-white/60 backdrop-blur-sm px-1 py-0.5 rounded border border-slate-200 truncate w-full flex items-center gap-1"><div className="w-1 h-1 rounded-full bg-tlp-pink shrink-0"></div><span className="shrink-0 font-black">{b.time.split(' ')[0]}</span><span className="truncate">{b.player.split(' ')[0]} {b.player.split(' ')[1]?.[0] || ''}.</span></div>))}
+            {dayBookings.length > 3 && <div className="text-[7px] font-black text-tlp-pink uppercase italic pt-1 pl-1">+ {dayBookings.length - 3} more</div>}
+            {!isBlocked && dayBookings.length === 0 && <div className="text-[7px] font-bold text-slate-300 uppercase italic opacity-0 group-hover:opacity-100 transition-opacity">Empty Slot</div>}
+          </div>
+          <div className="mt-auto pt-1 flex gap-1 items-center">{customTimeSlots[dateStr] && customTimeSlots[dateStr].length > 0 && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" title="Custom Hours Added"></div>}</div>
+        </button>
       );
     }
 
     return (
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden flex flex-col lg:flex-row">
-        <div className="flex-grow">
-          <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
-            <h3 className="text-xl font-black italic uppercase">{monthName} {year}</h3>
-            <div className="flex gap-2">
-              <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() - 1))} className="p-2"><i className="fas fa-chevron-left"></i></button>
-              <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() + 1))} className="p-2"><i className="fas fa-chevron-right"></i></button>
+      <div className="relative h-full animate-fade-in">
+        <div className="w-full">
+          <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-10 border-b flex justify-between items-center bg-white">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Facility Workload Overview</p>
+                <h3 className="text-4xl font-black italic uppercase text-slate-900 leading-none">{monthName} <span className="text-tlp-pink">{year}</span></h3>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() - 1))} className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 hover:text-tlp-pink hover:bg-white flex items-center justify-center transition-all shadow-sm"><i className="fas fa-chevron-left"></i></button>
+                <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() + 1))} className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 hover:text-tlp-pink hover:bg-white flex items-center justify-center transition-all shadow-sm"><i className="fas fa-chevron-right"></i></button>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 text-center py-6 border-b bg-slate-50/30">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                <div key={d} className="text-[11px] font-black text-slate-500 uppercase tracking-[0.25em]">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 bg-slate-50/10">
+              {calendarDays}
             </div>
           </div>
-          <div className="grid grid-cols-7 border-b">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="py-2 text-[10px] font-black text-center text-slate-400 uppercase">{d}</div>)}
-          </div>
-          <div className="grid grid-cols-7">
-            {calendarDays}
-          </div>
-        </div>
-        <div className="w-full lg:w-80 bg-slate-50/30 p-8 border-l border-slate-100">
-           <p className="text-[10px] font-black text-slate-400 uppercase mb-4">Date: {selectedCalendarDate}</p>
-           <button onClick={() => toggleBlockedDay(selectedCalendarDate)} className="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest">
-             {blockedSlots[selectedCalendarDate] === true ? 'Unlock Day' : 'Block Facility'}
-           </button>
         </div>
       </div>
     );
   };
 
-  const renderAdminStaff = () => {
-    const handleAddCoach = (e: React.FormEvent) => {
-      e.preventDefault();
-      const updated = [...dbCoaches, { ...newCoach, id: `c_${Date.now()}` }];
-      setDbCoaches(updated);
-      localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(updated));
-      setIsAddingCoach(false);
-    };
-
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <h2 className="text-xl font-black uppercase italic">Personnel</h2>
-          <button onClick={() => setIsAddingCoach(true)} className="bg-tlp-pink text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">Onboard Staff</button>
-        </div>
-        {isAddingCoach && (
-          <div className="bg-white p-8 rounded-3xl border-2 border-tlp-pink">
-            <form onSubmit={handleAddCoach} className="space-y-4">
-              <TextField id="n-name" label="Name" value={newCoach.name} onChange={e => setNewCoach({...newCoach, name: e.target.value})} required />
-              <TextField id="n-id" label="Access ID" value={newCoach.idCode} onChange={e => setNewCoach({...newCoach, idCode: e.target.value})} required />
-              <TextField id="n-key" label="Key" value={newCoach.securityKey} onChange={e => setNewCoach({...newCoach, securityKey: e.target.value})} required />
-              <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase">Authorize</button>
-            </form>
-          </div>
-        )}
+  const renderAdminStaff = () => (
+    <div className="space-y-8 animate-fade-in">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-black text-gray-800 tracking-tight italic uppercase">Facility Staff Terminal</h2>
+        <button onClick={() => setIsStaffDrawerOpen(true)} className="px-6 py-3 bg-tlp-pink text-white rounded-2xl font-black uppercase tracking-widest text-[10px] italic shadow-lg shadow-pink-100/50 hover:brightness-110 transition-all flex items-center gap-2">
+          <i className="fas fa-plus-circle"></i> Onboard New Instructor
+        </button>
       </div>
-    );
-  };
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Coach / Professional</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Designation</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Terminal Access ID</th>
+                <th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Access Security Key</th>
+                <th className="px-8 py-4"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {dbCoaches.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50/50 transition">
+                  <td className="px-8 py-6 font-black text-gray-800 uppercase italic text-sm">{c.name}</td>
+                  <td className="px-8 py-6 text-xs text-slate-500 font-bold uppercase tracking-widest">{c.role}</td>
+                  <td className="px-8 py-6 font-mono text-[11px] text-tlp-pink font-bold bg-pink-50/30">{c.idCode}</td>
+                  <td className="px-8 py-6 font-mono text-[11px] text-slate-600 font-bold italic">{c.securityKey}</td>
+                  <td className="px-8 py-6 text-right">
+                    <div className="flex gap-2 justify-end">
+                      <button className="w-8 h-8 rounded-lg text-slate-300 hover:text-tlp-pink transition-colors flex items-center justify-center">
+                        <i className="fas fa-cog"></i>
+                      </button>
+                      <button 
+                        onClick={() => handleRemoveStaff(c.id, c.name)}
+                        className="w-8 h-8 rounded-lg text-slate-300 hover:text-red-500 transition-colors flex items-center justify-center"
+                        title="Revoke Access"
+                      >
+                        <i className="fas fa-trash-alt"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 
-  const renderPlayerSteps = () => {
-    switch (step) {
-      case 1:
+  const renderAuth = () => {
+    switch (authView) {
+      case 'login':
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Select Discipline</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {SPORTS_OPTIONS.map(option => (
-                <button key={option.id} onClick={() => { updateBooking({ sport: option.id as Sport }); nextStep(); }}
-                  className={`p-8 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-4 ${booking.sport === option.id ? 'border-tlp-pink bg-pink-50' : 'border-gray-100 hover:border-pink-200'}`}>
-                  <i className={`fas ${option.icon} text-3xl ${option.id === 'baseball' ? 'text-slate-900' : 'text-tlp-pink'}`}></i>
-                  <span className="text-xl font-black text-gray-800 uppercase italic">{option.label}</span>
-                </button>
-              ))}
-            </div>
+          <div className="space-y-8 animate-fade-in"><div className="space-y-2"><h1 className="text-4xl font-black italic tracking-tight text-slate-950 uppercase leading-none">Welcome Back</h1><p className="text-slate-500 font-medium">Step into your training dashboard.</p></div>
+            <form className="space-y-4" onSubmit={(e) => handleLogin(e, 'user')}><TextField id="email" label="Email Address" type="email" required /><TextField id="password" label="Password" type="password" required /><div className="flex items-center justify-between pt-2"><button type="button" onClick={() => setAuthView('forgot')} className="text-xs font-black text-tlp-pink uppercase tracking-widest hover:underline">Forgot Password?</button></div><button type="submit" className="w-full bg-slate-950 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all italic text-lg mt-4">Enter Clubhouse</button></form>
+            <div className="relative"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div><div className="relative flex justify-center text-xs uppercase font-black tracking-widest text-slate-300"><span className="bg-white px-4 italic">Or continue with</span></div></div>
+            <div className="space-y-4"><GoogleLoginButton label="Continue with Google" onClick={() => setIsAuthenticated(true)} /><button onClick={() => { setIsAuthenticated(true); setIsGuest(true); }} className="w-full py-4 text-slate-400 font-black uppercase text-xs tracking-widest hover:text-tlp-pink transition">Enter as Guest Athlete</button></div>
+            <div className="pt-8 flex flex-col items-center gap-4"><button onClick={() => setAuthView('register')} className="text-xs font-black text-slate-400 uppercase tracking-widest hover:text-tlp-pink transition">Need an account? <span className="text-tlp-pink">Register</span></button><button onClick={() => setAuthView('admin')} className="text-[10px] font-black text-slate-300 uppercase tracking-widest hover:text-slate-500 transition border-t border-slate-50 pt-4 w-full text-center">Staff & Directorship Access</button></div>
           </div>
         );
-      case 2:
+      case 'admin':
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Choose Curriculum</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {LESSONS.map(lesson => (
-                <button key={lesson.id} onClick={() => { updateBooking({ lessonType: lesson.id as LessonType }); nextStep(); }}
-                  className={`p-6 rounded-[2rem] border-2 text-left transition-all ${booking.lessonType === lesson.id ? 'border-tlp-pink bg-pink-50' : 'border-gray-100 hover:border-pink-200'}`}>
-                  <div className="flex justify-between items-start mb-4">
-                    <i className={`fas ${lesson.icon} text-xl text-tlp-pink`}></i>
-                    <span className="text-lg font-black text-tlp-pink">{lesson.price}</span>
-                  </div>
-                  <h3 className="font-black text-gray-800 mb-1 uppercase tracking-tight">{lesson.label}</h3>
-                  <p className="text-xs text-gray-500 font-bold leading-relaxed">{lesson.description}</p>
-                </button>
-              ))}
-            </div>
+          <div className="space-y-8 animate-fade-in"><div className="space-y-2"><h1 className="text-4xl font-black italic tracking-tight text-tlp-pink uppercase leading-none">Admin Entry</h1><p className="text-slate-500 font-medium">Verify credentials for staff access.</p></div>
+            <form className="space-y-4" onSubmit={(e) => handleLogin(e, 'admin')}><TextField id="adminId" label="Coach ID Code" value={adminLoginId} onChange={e => setAdminLoginId(e.target.value)} required /><TextField id="adminKey" label="Security Key" type="password" value={adminLoginKey} onChange={e => setAdminLoginKey(e.target.value)} required /><button type="submit" className="w-full bg-tlp-pink text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:brightness-110 transition-all italic text-lg mt-4">Verify Identity</button><button type="button" onClick={() => setAuthView('login')} className="w-full py-2 text-slate-400 font-black uppercase text-xs tracking-widest hover:text-slate-950 transition">Back to Athlete Portal</button></form>
           </div>
         );
-      case 3:
-        const availableSlots = getAvailableTimeSlots();
+      case 'register':
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Pick Training Slot</h2>
-            <TextField id="booking-date" label="Training Date" type="date" min={getTodayString()} value={booking.date || ''} onChange={(e) => updateBooking({ date: e.target.value })} />
-            <div className="grid grid-cols-2 gap-4">
-              {availableSlots.map(slot => (
-                <button key={slot} onClick={() => updateBooking({ time: slot })} className={`py-4 text-xs font-black rounded-xl border-2 ${booking.time === slot ? 'bg-tlp-pink text-white border-tlp-pink shadow-lg' : 'bg-white text-gray-600 border-slate-100'}`}>{slot}</button>
-              ))}
-            </div>
-            {booking.date && booking.time && (
-              <div className="text-center mt-8">
-                <button onClick={nextStep} className="bg-tlp-pink text-white px-10 py-4 rounded-full font-black uppercase tracking-widest shadow-xl">Confirm Athlete Profile</button>
-              </div>
-            )}
+          <div className="space-y-8 animate-fade-in"><div className="space-y-2"><h1 className="text-4xl font-black italic tracking-tight text-slate-950 uppercase leading-none">Join the Pros</h1><p className="text-slate-500 font-medium">Create your elite athlete profile.</p></div>
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setIsAuthenticated(true); }}><TextField id="reg-name" label="Full Name" required /><TextField id="reg-email" label="Email Address" type="email" required /><TextField id="reg-password" label="Create Password" type="password" required /><button type="submit" className="w-full bg-slate-950 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all italic text-lg mt-4">Create Account</button><button type="button" onClick={() => setAuthView('login')} className="w-full py-2 text-slate-400 font-black uppercase text-xs tracking-widest hover:text-slate-950 transition">Already have an account? Sign In</button></form>
           </div>
         );
-      case 4:
+      case 'forgot':
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Verify & Secure</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TextField id="p-first" label="Athlete First Name" value={booking.playerInfo.firstName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, firstName: e.target.value }})} />
-              <TextField id="p-last" label="Athlete Last Name" value={booking.playerInfo.lastName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, lastName: e.target.value }})} />
-            </div>
-            {aiAdvice && (
-              <div className="bg-pink-50 p-4 rounded-2xl border border-pink-100 italic text-[10px] text-slate-700">
-                "{aiAdvice}"
-              </div>
-            )}
-            <button onClick={handleCompleteAuthorization} className="w-full bg-tlp-pink text-white py-5 rounded-2xl font-black text-lg hover:brightness-110 shadow-xl transition-all uppercase tracking-widest italic">
-              Authorize Training
-            </button>
+          <div className="space-y-8 animate-fade-in"><div className="space-y-2"><h1 className="text-4xl font-black italic tracking-tight text-slate-950 uppercase leading-none">Account Recovery</h1><p className="text-slate-500 font-medium">Enter your email to receive recovery link.</p></div>
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Recovery link sent!'); setAuthView('login'); }}><TextField id="rec-email" label="Email Address" type="email" required /><button type="submit" className="w-full bg-slate-950 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:bg-slate-900 transition-all italic text-lg mt-4">Send Recovery Link</button><button type="button" onClick={() => setAuthView('login')} className="w-full py-2 text-slate-400 font-black uppercase text-xs tracking-widest hover:text-slate-950 transition">Back to Sign In</button></form>
           </div>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-white flex flex-col lg:flex-row overflow-hidden">
-        <div className="hidden lg:flex lg:w-1/2 relative bg-slate-950 overflow-hidden border-r border-slate-900">
-          <img src="https://images.unsplash.com/photo-1601613583279-d2b5160be1cc?q=80&w=2000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-50" />
-          <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent"></div>
-          <div className="relative z-10 flex flex-col justify-end p-20 text-white">
-             <h2 className="text-6xl font-black italic tracking-tighter uppercase leading-[0.9]">Build Your<br /><span className="text-tlp-pink text-7xl">Legacy</span></h2>
-          </div>
-        </div>
-        <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-16 lg:p-24 overflow-y-auto bg-white min-h-screen">
-           <div className="mb-20 self-start"><TLPLogo size="lg" /></div>
-           <div className="max-w-md w-full animate-fade-in">{renderAuth()}</div>
-        </div>
+        <div className="hidden lg:flex lg:w-1/2 relative bg-slate-950 overflow-hidden border-r border-slate-900"><img src="https://images.unsplash.com/photo-1601613583279-d2b5160be1cc?q=80&w=2000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-50" /><div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent"></div><div className="relative z-10 flex flex-col justify-end p-20 text-white"><h2 className="text-6xl font-black italic tracking-tighter uppercase leading-[0.9]">Build Your<br /><span className="text-tlp-pink text-7xl">Legacy</span></h2></div></div>
+        <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-16 lg:p-24 overflow-y-auto bg-white min-h-screen"><div className="mb-20 self-start"><TLPLogo size="lg" /></div><div className="max-w-md w-full animate-fade-in">{renderAuth()}</div></div>
       </div>
     );
   }
 
   if (isAdmin) {
+    const isDateBlocked = blockedSlots[adminSelectedDate] === true;
+    const currentCustomSlots = customTimeSlots[adminSelectedDate] || [];
+    const selectedDateSessions = dbBookings.filter(b => b.date === adminSelectedDate);
+
     return (
-      <div className="min-h-screen bg-slate-50 flex">
-        <aside className="w-64 bg-slate-950 flex flex-col h-screen sticky top-0 z-50">
-          <div className="p-6 border-b border-slate-900"><TLPLogo size="sm" light={true} /></div>
-          <nav className="flex-grow py-6">
+      <div className="min-h-screen bg-slate-50 flex overflow-hidden">
+        <aside className="w-64 bg-slate-950 flex flex-col h-screen sticky top-0 z-50"><div className="p-6 border-b border-slate-900"><TLPLogo size="sm" light={true} /></div><nav className="flex-grow py-6">
             <M3SideNavItem active={adminTab === 'dashboard'} label="Overview" icon="fa-chart-pie" onClick={() => setAdminTab('dashboard')} />
             <M3SideNavItem active={adminTab === 'players'} label="Athletes" icon="fa-user-graduate" onClick={() => setAdminTab('players')} />
             <M3SideNavItem active={adminTab === 'schedule'} label="Calendar" icon="fa-calendar-alt" onClick={() => setAdminTab('schedule')} />
-            <M3SideNavItem active={adminTab === 'staff'} label="Personnel" icon="fa-user-shield" onClick={() => setAdminTab('staff')} />
-          </nav>
-          <div className="p-6">
-             <button onClick={handleBackToLogin} className="w-full text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition">Sign Out</button>
-          </div>
-        </aside>
-        <div className="flex-grow overflow-y-auto p-10">
+            <M3SideNavItem active={adminTab === 'staff'} label="Staff" icon="fa-users-cog" onClick={() => setAdminTab('staff')} />
+          </nav><div className="p-6"><button onClick={handleBackToLogin} className="w-full text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition">Sign Out</button></div></aside>
+        
+        <div className="flex-grow overflow-y-auto p-12 relative">
           {adminTab === 'dashboard' && renderAdminDashboard()}
           {adminTab === 'players' && renderAdminPlayers()}
           {adminTab === 'schedule' && renderAdminSchedule()}
           {adminTab === 'staff' && renderAdminStaff()}
+
+          {/* Admin Schedule Drawer */}
+          {isAdminDrawerOpen && adminTab === 'schedule' && (
+            <>
+              <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[60] animate-backdrop-fade" onClick={() => setIsAdminDrawerOpen(false)} />
+              <aside className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-[-20px_0_60px_rgba(0,0,0,0.2)] z-[70] animate-drawer-slide-in overflow-y-auto custom-scrollbar border-l border-slate-100">
+                <div className="p-10 flex flex-col gap-8">
+                  <div className="flex justify-between items-center pb-6 border-b border-slate-100">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Daily Workload</p>
+                      <h3 className="text-2xl font-black italic uppercase text-slate-900 leading-none">
+                        {new Date(adminSelectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })}
+                      </h3>
+                    </div>
+                    <button onClick={() => setIsAdminDrawerOpen(false)} className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 hover:text-tlp-pink flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Administrative Tools</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => toggleBlockedDay(adminSelectedDate)} className={`py-4 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] italic transition-all border-2 flex flex-col items-center justify-center gap-2 ${isDateBlocked ? 'bg-white border-green-500 text-green-600' : 'bg-red-500 border-red-500 text-white shadow-xl shadow-red-100'}`}><i className={`fas ${isDateBlocked ? 'fa-door-open' : 'fa-door-closed'} text-sm`}></i>{isDateBlocked ? 'Open Day' : 'Block Day'}</button>
+                      <button onClick={() => setShowManualBooking(!showManualBooking)} className={`py-4 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] italic transition-all border-2 flex flex-col items-center justify-center gap-2 ${showManualBooking ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-600 hover:border-tlp-pink'}`}><i className="fas fa-user-plus text-sm"></i>{showManualBooking ? 'Close Form' : 'Book Athlete'}</button>
+                    </div>
+                  </div>
+
+                  {showManualBooking && (
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 animate-fade-in space-y-4">
+                      <p className="text-[10px] font-black text-tlp-pink uppercase tracking-widest mb-2 italic">Schedule Athlete</p>
+                      <form onSubmit={handleManualBookingSubmit} className="space-y-4">
+                        <TextField id="m-player" label="Select Athlete" type="select" value={manualBookingData.playerId} onChange={e => setManualBookingData({...manualBookingData, playerId: e.target.value})} required><option value="">Choose an athlete...</option>{dbPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</TextField>
+                        <TextField id="m-time" label="Session Time" value={manualBookingData.time} placeholder="e.g. 09:00 AM" onChange={e => setManualBookingData({...manualBookingData, time: e.target.value})} required />
+                        <TextField id="m-lesson" label="Lesson Focus" type="select" value={manualBookingData.lessonId} onChange={e => setManualBookingData({...manualBookingData, lessonId: e.target.value as LessonType})} required>{LESSONS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</TextField>
+                        <button type="submit" className="w-full bg-tlp-pink text-white py-3 rounded-xl font-black uppercase tracking-widest text-[10px] italic shadow-lg shadow-pink-100">Confirm Booking</button>
+                      </form>
+                    </div>
+                  )}
+
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Added Shifts</p>
+                      <button onClick={() => setIsAddingCustomSlot(!isAddingCustomSlot)} className="text-[9px] font-black text-tlp-pink uppercase hover:underline">{isAddingCustomSlot ? 'Cancel' : 'Add Shift'}</button>
+                    </div>
+                    {isAddingCustomSlot && (<div className="flex gap-2 animate-fade-in"><input type="text" value={newCustomSlotTime} onChange={e => setNewCustomSlotTime(e.target.value)} placeholder="e.g. 07:00 AM" className="flex-grow text-[10px] p-2 rounded-lg border border-slate-200 focus:border-tlp-pink focus:outline-none uppercase font-black italic" /><button onClick={() => addCustomTimeSlot(adminSelectedDate, newCustomSlotTime)} className="bg-tlp-pink text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase">Save</button></div>)}
+                    <div className="grid grid-cols-2 gap-2">
+                      {currentCustomSlots.length > 0 ? currentCustomSlots.map(t => (<div key={t} className="flex justify-between items-center p-2 bg-slate-50 rounded-xl border border-slate-100"><span className="text-[10px] font-black text-slate-700 italic">{t}</span><button onClick={() => removeCustomTimeSlot(adminSelectedDate, t)} className="text-slate-300 hover:text-red-500 transition-colors"><i className="fas fa-times text-[10px]"></i></button></div>)) : <div className="col-span-2 py-4 text-center border-2 border-dashed border-slate-100 rounded-2xl"><p className="text-[9px] text-slate-400 font-bold uppercase italic tracking-widest">No custom shifts</p></div>}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Booked Roster ({selectedDateSessions.length})</p>
+                    <div className="space-y-3">
+                      {selectedDateSessions.length > 0 ? selectedDateSessions.map(b => (
+                        <div key={b.id} className="p-4 bg-slate-950 rounded-2xl shadow-xl shadow-slate-200 group border-l-4 border-tlp-pink">
+                          <div className="flex justify-between items-start mb-2"><p className="text-[10px] font-black text-tlp-pink uppercase italic tracking-widest">{b.time}</p><i className="fas fa-id-card text-white/20 text-xs"></i></div>
+                          <p className="text-sm font-black text-white uppercase leading-tight">{b.player}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{b.lesson}</p>
+                        </div>
+                      )) : <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200"><i className="fas fa-calendar-day text-slate-200 text-3xl mb-3"></i><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">No athletes rostered.</p></div>}
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </>
+          )}
+
+          {/* Athlete Detail Drawer */}
+          {isAthleteDrawerOpen && selectedAthlete && adminTab === 'players' && (
+            <>
+              <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[60] animate-backdrop-fade" onClick={() => setIsAthleteDrawerOpen(false)} />
+              <aside className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-[-20px_0_60px_rgba(0,0,0,0.2)] z-[70] animate-drawer-slide-in overflow-y-auto custom-scrollbar border-l border-slate-100">
+                <div className="p-10 space-y-10">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-tlp-pink uppercase tracking-[0.2em] italic">Athlete Dossier</p>
+                      <h3 className="text-3xl font-black italic uppercase text-slate-950 leading-none">{selectedAthlete.name}</h3>
+                      <div className="flex gap-2 pt-2">
+                        <span className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full uppercase">Age {selectedAthlete.age}</span>
+                        <span className="text-[9px] font-black bg-pink-50 text-tlp-pink px-2 py-0.5 rounded-full uppercase">{selectedAthlete.sessions} Sessions Total</span>
+                      </div>
+                    </div>
+                    <button onClick={() => setIsAthleteDrawerOpen(false)} className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 hover:text-tlp-pink flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+                  </div>
+
+                  <div className="space-y-6">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Parent / Guardian Information</p>
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Full Name</p><p className="font-bold text-slate-900">{selectedAthlete.parent.name}</p></div>
+                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Contact Email</p><p className="font-bold text-slate-900 truncate">{selectedAthlete.parent.email}</p></div>
+                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Phone Line</p><p className="font-bold text-slate-900">{selectedAthlete.parent.phone}</p></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Training Performance History</p>
+                    <div className="space-y-3">
+                      {selectedAthlete.history && selectedAthlete.history.length > 0 ? selectedAthlete.history.map((item: string, idx: number) => (
+                        <div key={idx} className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-2xl hover:border-tlp-pink transition-colors">
+                          <div className="w-8 h-8 rounded-full bg-pink-50 flex items-center justify-center text-tlp-pink text-[10px] font-black">{idx + 1}</div>
+                          <div>
+                            <p className="text-xs font-black uppercase text-slate-900 italic">{item}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">Verified Session</p>
+                          </div>
+                        </div>
+                      )) : (
+                        <p className="text-xs text-slate-400 italic text-center py-6 bg-slate-50 rounded-2xl">No historical data found.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-slate-50">
+                    <button className="w-full py-4 bg-slate-950 text-white rounded-2xl font-black uppercase tracking-widest italic text-xs hover:bg-tlp-pink transition-all shadow-xl">Initiate Performance Log</button>
+                  </div>
+                </div>
+              </aside>
+            </>
+          )}
+
+          {/* Staff Onboarding Drawer */}
+          {isStaffDrawerOpen && adminTab === 'staff' && (
+            <>
+              <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[60] animate-backdrop-fade" onClick={() => setIsStaffDrawerOpen(false)} />
+              <aside className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-[-20px_0_60px_rgba(0,0,0,0.2)] z-[70] animate-drawer-slide-in overflow-y-auto custom-scrollbar border-l border-slate-100">
+                <div className="p-10 space-y-10">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-tlp-pink uppercase tracking-[0.2em] italic">Human Resources</p>
+                      <h3 className="text-3xl font-black italic uppercase text-slate-950 leading-none">Onboard Staff</h3>
+                      <p className="text-xs text-slate-500 font-medium pt-2">Create secure terminal access for new instructors.</p>
+                    </div>
+                    <button onClick={() => setIsStaffDrawerOpen(false)} className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 hover:text-tlp-pink flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+                  </div>
+
+                  <form onSubmit={handleAddStaff} className="space-y-6">
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Instructor Identity</p>
+                      <TextField id="s-name" label="Full Name" value={newStaffData.name} onChange={e => setNewStaffData({...newStaffData, name: e.target.value})} required />
+                      <TextField id="s-role" label="Professional Designation" placeholder="e.g. Lead Hitting Coach" value={newStaffData.role} onChange={e => setNewStaffData({...newStaffData, role: e.target.value})} required />
+                    </div>
+
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Terminal Access Logic</p>
+                      <TextField id="s-id" label="Access ID Code (Unique)" placeholder="COACH2" value={newStaffData.idCode} onChange={e => setNewStaffData({...newStaffData, idCode: e.target.value})} required />
+                      <TextField id="s-key" label="Secret Terminal Key" type="password" value={newStaffData.securityKey} onChange={e => setNewStaffData({...newStaffData, securityKey: e.target.value})} required />
+                    </div>
+
+                    <div className="pt-6 border-t border-slate-50">
+                      <button type="submit" className="w-full py-4 bg-tlp-pink text-white rounded-2xl font-black uppercase tracking-widest italic text-xs hover:brightness-110 transition-all shadow-xl shadow-pink-100/50">Authorize Terminal Access</button>
+                    </div>
+                  </form>
+                </div>
+              </aside>
+            </>
+          )}
         </div>
       </div>
     );
@@ -797,51 +1083,32 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 bg-white">
-      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 py-4 px-8 backdrop-blur-md bg-white/90">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-4 cursor-pointer" onClick={() => setStep(1)}>
-            <TLPLogo size="sm" />
-            <h1 className="text-xl font-black text-slate-900 italic hidden sm:block uppercase">TRAIN LIKE <span className="text-tlp-pink">PROS</span></h1>
-          </div>
-          <button onClick={() => setIsAccountOpen(true)} className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black italic">G</button>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-6 mt-16">
-        <div className="mb-20 flex justify-between relative">
-          <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0"></div>
-          <div className="absolute top-1/2 left-0 h-1 bg-tlp-pink -translate-y-1/2 z-0 transition-all duration-500" style={{ width: `${(step-1) * 33.33}%` }}></div>
-          {[1, 2, 3, 4].map(s => (
-            <div key={s} className="relative z-10 flex flex-col items-center">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all ${step === s ? 'bg-tlp-pink text-white scale-110 shadow-lg' : step > s ? 'bg-slate-900 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>{step > s ? <i className="fas fa-check"></i> : s}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-50 p-10 min-h-[400px] animate-fade-in">
-          {renderPlayerSteps()}
-          <div className="mt-12 flex justify-between items-center pt-8 border-t border-slate-50">
-            {step > 1 ? <button onClick={prevStep} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-tlp-pink">Return</button> : <div />}
-            <span className="text-[10px] text-slate-500 font-black uppercase">Step {step}/4</span>
-          </div>
-        </div>
-      </main>
-
-      {isAccountOpen && (
-        <div className="fixed inset-0 z-[100] flex justify-end">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setIsAccountOpen(false)}></div>
-          <div className="relative w-80 bg-white h-full p-8 shadow-2xl animate-fade-in">
-            <button onClick={() => setIsAccountOpen(false)} className="mb-8"><i className="fas fa-times"></i></button>
-            <h3 className="text-lg font-black uppercase italic mb-8">Account</h3>
-            <button onClick={handleBackToLogin} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest">Sign Out</button>
-          </div>
-        </div>
-      )}
-
+      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 py-4 px-8 backdrop-blur-md bg-white/90"><div className="max-w-6xl mx-auto flex justify-between items-center"><div className="flex items-center gap-4 cursor-pointer" onClick={() => setStep(1)}><TLPLogo size="sm" /><h1 className="text-xl font-black text-slate-900 italic hidden sm:block uppercase">TRAIN LIKE <span className="text-tlp-pink">PROS</span></h1></div>{!isGuest && (<button onClick={() => setIsAccountOpen(true)} className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black italic">G</button>)}</div></header>
+      <main className="max-w-6xl mx-auto px-6 mt-16"><div className="mb-20 flex justify-between relative max-w-2xl mx-auto"><div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0"></div><div className="absolute top-1/2 left-0 h-1 bg-tlp-pink -translate-y-1/2 z-0 transition-all duration-500" style={{ width: `${(step-1) * 50}%` }}></div>{[1, 2, 3].map(s => (<div key={s} className="relative z-10 flex flex-col items-center"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all ${step === s ? 'bg-tlp-pink text-white scale-110 shadow-lg' : step > s ? 'bg-slate-900 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>{step > s ? <i className="fas fa-check"></i> : s}</div><span className={`text-[9px] font-black uppercase mt-3 tracking-widest ${step === s ? 'text-tlp-pink' : 'text-slate-400'}`}>{s === 1 ? 'Details' : s === 2 ? 'Schedule' : 'Finish'}</span></div>))}</div>
+        <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-50 p-6 md:p-12 min-h-[400px] animate-fade-in overflow-hidden">{renderPlayerSteps()}<div className="mt-12 flex justify-between items-center pt-8 border-t border-slate-50">{step > 1 ? <button onClick={prevStep} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-tlp-pink">go back</button> : <div />}<span className="text-[10px] text-slate-500 font-black uppercase">Step {step}/3</span></div></div></main>
       <style>{`
-        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fade-in { 
+          from { opacity: 0; transform: translateY(10px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+        @keyframes backdrop-fade {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes drawer-slide-in { 
+          from { transform: translateX(100%); } 
+          to { transform: translateX(0); } 
+        }
         .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
-        .date-input-field::-webkit-calendar-picker-indicator { position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0; cursor: pointer; opacity: 0; z-index: 20; }
+        .animate-backdrop-fade { animation: backdrop-fade 0.3s ease-out forwards; }
+        .animate-drawer-slide-in { 
+          animation: drawer-slide-in 0.45s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; 
+          will-change: transform;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #eb328a; }
       `}</style>
     </div>
   );
