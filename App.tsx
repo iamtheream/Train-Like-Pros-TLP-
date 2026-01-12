@@ -24,8 +24,8 @@ const TLPLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' | 'xl'; light?: boolean }> =
     <div className={`${heightClass} flex items-center justify-center ${light ? 'brightness-0 invert' : ''}`}>
       {!imgError ? (
         <img 
-          src={logoUrl} 
-          alt="Train Like Pros" 
+            src={logoUrl} 
+            alt="Train Like Pros" 
           className="h-full w-auto object-contain block drop-shadow-md"
           onError={() => setImgError(true)}
         />
@@ -1086,7 +1086,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 bg-white">
-      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 py-4 px-8 backdrop-blur-md bg-white/90"><div className="max-w-6xl mx-auto flex justify-between items-center"><div className="flex items-center gap-4 cursor-pointer" onClick={() => setStep(1)}><TLPLogo size="sm" /><h1 className="text-xl font-black text-slate-900 italic hidden sm:block uppercase">TRAIN LIKE <span className="text-tlp-pink">PROS</span></h1></div>{!isGuest && (<button onClick={() => setIsAccountOpen(true)} className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black italic">G</button>)}</div></header>
+      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 py-4 px-8 backdrop-blur-md bg-white/90"><div className="max-w-6xl mx-auto flex justify-between items-center"><div className="flex items-center gap-4 cursor-pointer" onClick={() => setStep(1)}><TLPLogo size="sm" /><h1 className="text-xl font-black text-slate-900 italic hidden sm:block uppercase"></h1></div>{!isGuest && (<button onClick={() => setIsAccountOpen(true)} className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black italic">G</button>)}</div></header>
       <main className="max-w-6xl mx-auto px-6 mt-16"><div className="mb-20 flex justify-between relative max-w-2xl mx-auto"><div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0"></div><div className="absolute top-1/2 left-0 h-1 bg-tlp-pink -translate-y-1/2 z-0 transition-all duration-500" style={{ width: `${(step-1) * 50}%` }}></div>{[1, 2, 3].map(s => (<div key={s} className="relative z-10 flex flex-col items-center"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all ${step === s ? 'bg-tlp-pink text-white scale-110 shadow-lg' : step > s ? 'bg-slate-900 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>{step > s ? <i className="fas fa-check"></i> : s}</div><span className={`text-[9px] font-black uppercase mt-3 tracking-widest ${step === s ? 'text-tlp-pink' : 'text-slate-400'}`}>{s === 1 ? 'Details' : s === 2 ? 'Schedule' : 'Finish'}</span></div>))}</div>
         <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-50 p-6 md:p-12 min-h-[400px] animate-fade-in overflow-hidden">{renderPlayerSteps()}<div className="mt-12 flex justify-between items-center pt-8 border-t border-slate-50">{step > 1 ? <button onClick={prevStep} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-tlp-pink">go back</button> : <div />}<span className="text-[10px] text-slate-500 font-black uppercase">Step {step}/3</span></div></div></main>
       <style>{`
