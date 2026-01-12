@@ -4,6 +4,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "homepage": "https://iamtheream.github.io/Train-Like-Pros-TLP-/",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
