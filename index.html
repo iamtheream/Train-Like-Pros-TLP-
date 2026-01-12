@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Train Like Pros (TLP) - Elite Training</title>
+    
+    <!-- Favicon to resolve 404 error -->
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3516/3516601.png">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -47,7 +51,10 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- Vite will replace this with the bundled script during build -->
+    <!-- 
+      Vite entry point. Relative path is essential for the 
+      Vite build process to correctly resolve the file.
+    -->
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>
