@@ -25,9 +25,11 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #fafafa;
+            margin: 0;
+            padding: 0;
         }
-        .tlp-logo-dripping {
-            filter: drop-shadow(0 4px 6px rgba(235, 50, 138, 0.2));
+        #root {
+            min-height: 100vh;
         }
     </style>
 <script type="importmap">
@@ -45,10 +47,7 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- 
-      Using a relative path (./) allows Vite to correctly process the entry point
-      and apply the 'base' path configuration during the build process.
-    -->
+    <!-- Vite will replace this with the bundled script during build -->
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>

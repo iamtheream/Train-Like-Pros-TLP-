@@ -12,5 +12,8 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     assetsDir: 'assets',
+    // Ensures cleaner production output
+    minify: 'esbuild',
+    reportCompressedSize: false
   },
 });

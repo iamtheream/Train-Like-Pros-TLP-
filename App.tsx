@@ -6,9 +6,6 @@ import { getTrainingAdvice } from './services/geminiService.ts';
 type AuthView = 'login' | 'register' | 'forgot' | 'admin';
 type AdminTab = 'dashboard' | 'players' | 'schedule' | 'staff';
 
-/**
- * Storage Keys for our "Database"
- */
 const STORAGE_KEYS = {
   PLAYERS: 'tlp_database_players',
   BOOKINGS: 'tlp_database_bookings',
@@ -16,30 +13,27 @@ const STORAGE_KEYS = {
   COACHES: 'tlp_database_coaches',
 };
 
-/**
- * Logo component that uses the provided PNG logo.
- */
 const TLPLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' | 'xl'; light?: boolean }> = ({ size = 'md', light = false }) => {
   const heightClass = size === 'sm' ? 'h-10' : size === 'md' ? 'h-16' : size === 'lg' ? 'h-24' : 'h-40';
   const logoUrl = "https://drive.google.com/uc?export=view&id=1dwJCUL8BFnagGDjDPb42cdvkeqvxi02S";
+  const [imgError, setImgError] = useState(false);
   
   return (
     <div className={`${heightClass} flex items-center justify-center ${light ? 'brightness-0 invert' : ''}`}>
-      <img 
-        src={logoUrl} 
-        alt="Train Like Pros" 
-        className="h-full w-auto object-contain block drop-shadow-md"
-        onError={(e) => {
-          (e.target as HTMLImageElement).src = "logo.png";
-        }}
-      />
+      {!imgError ? (
+        <img 
+          src={logoUrl} 
+          alt="Train Like Pros" 
+          className="h-full w-auto object-contain block drop-shadow-md"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="font-black italic text-xl tracking-tighter text-tlp-pink">TRAIN LIKE PROS</div>
+      )}
     </div>
   );
 };
 
-/**
- * Reusable Google Login Button
- */
 const GoogleLoginButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <button
     type="button"
@@ -56,9 +50,6 @@ const GoogleLoginButton: React.FC<{ label: string; onClick: () => void }> = ({ l
   </button>
 );
 
-/**
- * Material 3 inspired Text Field component
- */
 const TextField: React.FC<{
   label: string;
   type?: string;
@@ -130,9 +121,6 @@ const TextField: React.FC<{
   );
 };
 
-/**
- * Material 3 inspired Side Nav Item
- */
 const M3SideNavItem: React.FC<{
   active: boolean;
   label: string;
@@ -175,19 +163,15 @@ const App: React.FC = () => {
   const [aiAdvice, setAiAdvice] = useState<string>('');
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
-  // Login form state
   const [adminLoginId, setAdminLoginId] = useState('');
   const [adminLoginKey, setAdminLoginKey] = useState('');
 
-  // Admin Schedule State
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('');
 
-  // Admin Staff State
   const [isAddingCoach, setIsAddingCoach] = useState(false);
   const [newCoach, setNewCoach] = useState({ name: '', role: '', idCode: '', securityKey: '' });
 
-  // Persistent "Database" State
   const [dbPlayers, setDbPlayers] = useState<any[]>([]);
   const [dbBookings, setDbBookings] = useState<any[]>([]);
   const [dbCoaches, setDbCoaches] = useState<any[]>([]);
@@ -201,7 +185,6 @@ const App: React.FC = () => {
     return `${year}-${month}-${day}`;
   };
 
-  // Load initial data from localStorage
   useEffect(() => {
     const today = getTodayString();
     setSelectedCalendarDate(today);
@@ -288,7 +271,6 @@ const App: React.FC = () => {
     const fullName = `${booking.playerInfo.firstName} ${booking.playerInfo.lastName}`;
     const newId = `p_${Date.now()}`;
     
-    // Check if player exists
     const existingPlayerIndex = dbPlayers.findIndex(p => p.name.toLowerCase() === fullName.toLowerCase());
     
     let updatedPlayers = [...dbPlayers];
@@ -330,7 +312,7 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(updatedPlayers));
     localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updatedBookings));
 
-    alert('Booking Authorized! Welcome to the Elite Roster. Your athlete profile has been synchronized.');
+    alert('Booking Authorized! Your athlete profile has been synchronized.');
     setStep(1);
     setBooking({
       sport: null,
@@ -395,7 +377,7 @@ const App: React.FC = () => {
         setAdminLoginId('');
         setAdminLoginKey('');
       } else {
-        alert('Access Denied. Please verify your Coach ID and Security Key. Check for typos or extra spaces.');
+        alert('Access Denied. Check ID and Key.');
       }
     } else {
       setIsAuthenticated(true);
@@ -525,13 +507,6 @@ const App: React.FC = () => {
                 <i className="fas fa-arrow-left"></i> Back to Player Site
               </button>
             </form>
-            <div className="text-left mt-6 bg-slate-50 p-5 rounded-2xl border border-slate-100">
-               <div className="flex items-center gap-2 mb-2">
-                 <i className="fas fa-info-circle text-slate-400 text-[10px]"></i>
-                 <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Development Access</p>
-               </div>
-               <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight">ID: COACH1 • Key: admin123</p>
-            </div>
           </div>
         );
       case 'register':
@@ -568,55 +543,14 @@ const App: React.FC = () => {
         <div className="bg-tlp-pink rounded-3xl p-6 text-white shadow-xl shadow-pink-100">
           <p className="text-pink-100 text-[10px] font-black uppercase tracking-widest mb-1">Total Pro-Turns</p>
           <h3 className="text-4xl font-black">{dbPlayers.reduce((acc, p) => acc + p.sessions, 0)}</h3>
-          <p className="text-pink-200 text-sm mt-2 font-bold"><i className="fas fa-arrow-up mr-1"></i> Lifetime activity</p>
         </div>
         <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm cursor-pointer hover:border-tlp-pink transition" onClick={() => setAdminTab('players')}>
           <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Active Athletes</p>
           <h3 className="text-4xl font-black text-gray-800">{dbPlayers.length}</h3>
-          <p className="text-green-500 text-sm mt-2 font-bold tracking-tight"><i className="fas fa-check-circle mr-1"></i> Manage Roster</p>
         </div>
         <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
           <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Session Volume</p>
           <h3 className="text-4xl font-black text-gray-800">{dbBookings.filter(b => b.date === getTodayString()).length}</h3>
-          <p className="text-slate-500 text-sm mt-2 font-bold uppercase tracking-widest text-[10px]">Active Today</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden">
-        <div className="px-8 py-6 border-b flex justify-between items-center bg-gray-50/50">
-          <h3 className="text-xl font-black text-gray-800 tracking-tight italic">RECENT ACTIVITY</h3>
-          <button className="text-tlp-pink text-xs font-black uppercase tracking-widest hover:underline">Advanced Analytics</button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Athlete</th>
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Date / Time</th>
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Curriculum</th>
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Authorization</th>
-                <th className="px-8 py-4"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {dbBookings.slice().reverse().slice(0, 5).map(session => (
-                <tr key={session.id} className="hover:bg-gray-50/50 transition">
-                  <td className="px-8 py-4 font-black text-gray-800">{session.player}</td>
-                  <td className="px-8 py-4 text-gray-600 font-bold text-xs">{session.date} @ {session.time}</td>
-                  <td className="px-8 py-4"><span className="px-3 py-1 bg-pink-50 text-tlp-pink rounded-full text-[10px] font-black uppercase italic tracking-tighter">{session.lesson}</span></td>
-                  <td className="px-8 py-4">
-                    <span className={`flex items-center gap-2 text-slate-500 font-black uppercase tracking-wider text-[10px] ${session.status === 'Confirmed' ? 'text-green-600' : 'text-orange-500'}`}>
-                      <span className={`w-2 h-2 rounded-full ${session.status === 'Confirmed' ? 'bg-green-600' : 'bg-orange-500'}`}></span>
-                      {session.status}
-                    </span>
-                  </td>
-                  <td className="px-8 py-4 text-right">
-                    <button className="w-8 h-8 text-gray-400 hover:text-tlp-pink transition"><i className="fas fa-ellipsis-v"></i></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
@@ -626,67 +560,27 @@ const App: React.FC = () => {
     <div className="space-y-8 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
         <h2 className="text-2xl font-black text-gray-800 tracking-tight italic uppercase">Athlete Roster</h2>
-        <div className="flex gap-2">
-          <div className="relative">
-            <input type="text" placeholder="Search prospects..." className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 pl-10 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-tlp-pink transition-all w-full md:w-64" />
-            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-          </div>
-        </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left">
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Athlete Profile</th>
+                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Athlete</th>
                 <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Turns</th>
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Curriculum History</th>
-                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Emergency Bio</th>
+                <th className="px-8 py-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Bio</th>
                 <th className="px-8 py-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {dbPlayers.map(player => (
-                <tr key={player.id} className="hover:bg-gray-50/50 transition align-top">
-                  <td className="px-8 py-6">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 bg-tlp-pink text-white rounded-xl flex items-center justify-center font-black shrink-0 italic shadow-lg shadow-pink-100">
-                        {player.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-black text-gray-800 leading-none">{player.name}</p>
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-tight mt-1">Age {player.age} • Premier Tier</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div>
-                      <p className="text-xl font-black text-tlp-pink leading-none">{player.sessions}</p>
-                      <p className="text-[9px] text-gray-400 uppercase tracking-widest font-black mt-1">TOTAL SESSIONS</p>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex flex-wrap gap-1 max-w-xs">
-                      {Array.from(new Set(player.history)).map((lesson: any, idx) => (
-                        <span key={idx} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase tracking-tight italic">
-                          {lesson}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="space-y-1">
-                      <p className="text-xs font-black text-gray-700">{player.parent.name}</p>
-                      <div className="flex items-center gap-2 text-slate-500 font-bold tracking-tight text-[10px]">
-                        <i className="fas fa-phone-alt text-[8px]"></i> {player.parent.phone}
-                      </div>
-                    </div>
-                  </td>
+                <tr key={player.id} className="hover:bg-gray-50/50 transition">
+                  <td className="px-8 py-6 font-black text-gray-800">{player.name}</td>
+                  <td className="px-8 py-6 font-black text-tlp-pink">{player.sessions}</td>
+                  <td className="px-8 py-6 text-xs text-slate-500">{player.parent.name} • {player.parent.phone}</td>
                   <td className="px-8 py-6 text-right">
-                    <button onClick={() => openPlayerProfile(player)} className="px-4 py-2 border-2 border-slate-50 rounded-xl text-slate-500 font-black text-[10px] hover:border-tlp-pink hover:text-tlp-pink transition uppercase tracking-widest">
-                      Inspect
-                    </button>
+                    <button onClick={() => openPlayerProfile(player)} className="px-4 py-2 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-tlp-pink transition">Inspect</button>
                   </td>
                 </tr>
               ))}
@@ -705,116 +599,48 @@ const App: React.FC = () => {
 
     const calendarDays = [];
     for (let i = 0; i < firstDayOfMonth; i++) {
-      calendarDays.push(<div key={`empty-${i}`} className="h-32 border-slate-50 border bg-slate-50/30"></div>);
+      calendarDays.push(<div key={`empty-${i}`} className="h-24 bg-slate-50/30"></div>);
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(currentCalendarDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isSelected = selectedCalendarDate === dateStr;
       const isBlocked = blockedSlots[dateStr] === true;
-      const hasPartiallyBlocked = Array.isArray(blockedSlots[dateStr]);
-      const dailyBookings = dbBookings.filter(b => b.date === dateStr);
 
       calendarDays.push(
         <div 
           key={d} 
           onClick={() => setSelectedCalendarDate(dateStr)}
-          className={`h-32 border border-slate-100 p-3 cursor-pointer transition-all relative group
-            ${isSelected ? 'ring-2 ring-inset ring-tlp-pink bg-pink-50/20' : 'hover:bg-slate-50'}
-            ${isBlocked ? 'bg-red-50/30' : ''}
-          `}
+          className={`h-24 border border-slate-100 p-2 cursor-pointer transition-all ${isSelected ? 'bg-pink-50 ring-1 ring-inset ring-tlp-pink' : 'hover:bg-slate-50'} ${isBlocked ? 'bg-red-50' : ''}`}
         >
-          <div className="flex justify-between items-start">
-            <span className={`text-sm font-black ${isSelected ? 'text-tlp-pink' : 'text-slate-900'}`}>{d}</span>
-            {isBlocked && <span className="text-[8px] bg-red-500 text-white px-1 rounded font-black uppercase tracking-tighter">OFF</span>}
-            {hasPartiallyBlocked && <span className="text-[8px] bg-orange-400 text-white px-1 rounded font-black uppercase tracking-tighter">LIMITED</span>}
-          </div>
-          <div className="mt-2 space-y-1">
-            {dailyBookings.slice(0, 2).map(b => (
-              <div key={b.id} className="text-[9px] font-black text-slate-600 truncate bg-white border border-slate-100 rounded px-1 flex items-center gap-1 uppercase italic">
-                <span className="w-1 h-1 rounded-full bg-tlp-pink"></span> {b.player.split(' ')[0]}
-              </div>
-            ))}
-            {dailyBookings.length > 2 && <div className="text-[8px] text-slate-400 font-black">+ {dailyBookings.length - 2} more</div>}
-          </div>
+          <span className={`text-xs font-black ${isSelected ? 'text-tlp-pink' : 'text-slate-900'}`}>{d}</span>
+          {isBlocked && <div className="text-[8px] bg-red-500 text-white px-1 mt-1 rounded text-center font-black">OFF</div>}
         </div>
       );
     }
 
-    const selectedDateBookings = dbBookings.filter(b => b.date === selectedCalendarDate);
-    const isSelectedDateBlocked = blockedSlots[selectedCalendarDate] === true;
-
     return (
-      <div className="space-y-8 animate-fade-in pb-20">
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col lg:flex-row">
-          <div className="flex-grow">
-            <div className="p-8 border-b flex justify-between items-center bg-slate-50/50">
-              <div className="flex items-center gap-4">
-                <h3 className="text-xl font-black text-gray-800 tracking-tight uppercase italic">{monthName} {year}</h3>
-                <div className="flex gap-1">
-                  <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() - 1))} className="w-8 h-8 rounded-lg hover:bg-white flex items-center justify-center text-slate-400 border border-transparent hover:border-slate-100 transition-all"><i className="fas fa-chevron-left"></i></button>
-                  <button onClick={() => setCurrentCalendarDate(new Date())} className="px-3 h-8 rounded-lg hover:bg-white text-[9px] font-black uppercase tracking-widest text-slate-500 border border-transparent hover:border-slate-100 transition-all">Today</button>
-                  <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() + 1))} className="w-8 h-8 rounded-lg hover:bg-white flex items-center justify-center text-slate-400 border border-transparent hover:border-slate-100 transition-all"><i className="fas fa-chevron-right"></i></button>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-7 text-center py-4 bg-slate-50/30 border-b border-slate-50">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{day}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7">
-              {calendarDays}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden flex flex-col lg:flex-row">
+        <div className="flex-grow">
+          <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
+            <h3 className="text-xl font-black italic uppercase">{monthName} {year}</h3>
+            <div className="flex gap-2">
+              <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() - 1))} className="p-2"><i className="fas fa-chevron-left"></i></button>
+              <button onClick={() => setCurrentCalendarDate(new Date(year, currentCalendarDate.getMonth() + 1))} className="p-2"><i className="fas fa-chevron-right"></i></button>
             </div>
           </div>
-
-          <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-100 bg-slate-50/20 p-8">
-            <div className="mb-10">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Selected Date</p>
-              <h4 className="text-2xl font-black text-slate-900 italic uppercase leading-none">{selectedCalendarDate}</h4>
-            </div>
-
-            <div className="space-y-8">
-              <section>
-                <div className="flex justify-between items-center mb-6">
-                   <h5 className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b-2 border-tlp-pink pb-1 italic">Availability</h5>
-                   <button 
-                     onClick={() => toggleBlockedDay(selectedCalendarDate)}
-                     className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all
-                        ${isSelectedDateBlocked ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}
-                     `}
-                   >
-                     {isSelectedDateBlocked ? 'Unlock Day' : 'Block Entire Day'}
-                   </button>
-                </div>
-
-                {!isSelectedDateBlocked && (
-                  <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                    {TIME_SLOTS.map(slot => {
-                      const dayBlocked = blockedSlots[selectedCalendarDate];
-                      const isSlotBlocked = Array.isArray(dayBlocked) && dayBlocked.includes(slot);
-                      const isSlotBooked = selectedDateBookings.some(b => b.time === slot);
-                      return (
-                        <div key={slot} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black text-slate-900 uppercase italic tracking-tighter">{slot}</span>
-                            {isSlotBooked && <span className="text-[8px] text-tlp-pink font-black uppercase">Booked</span>}
-                          </div>
-                          <button 
-                            disabled={isSlotBooked}
-                            onClick={() => toggleBlockedSlot(selectedCalendarDate, slot)}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isSlotBlocked ? 'bg-red-50 text-red-500' : 'bg-slate-50 text-slate-300 hover:text-red-400'} ${isSlotBooked ? 'opacity-20 cursor-not-allowed' : ''}`}
-                          >
-                            <i className={`fas ${isSlotBlocked ? 'fa-ban' : 'fa-circle-check'}`}></i>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            </div>
+          <div className="grid grid-cols-7 border-b">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="py-2 text-[10px] font-black text-center text-slate-400 uppercase">{d}</div>)}
           </div>
+          <div className="grid grid-cols-7">
+            {calendarDays}
+          </div>
+        </div>
+        <div className="w-full lg:w-80 bg-slate-50/30 p-8 border-l border-slate-100">
+           <p className="text-[10px] font-black text-slate-400 uppercase mb-4">Date: {selectedCalendarDate}</p>
+           <button onClick={() => toggleBlockedDay(selectedCalendarDate)} className="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest">
+             {blockedSlots[selectedCalendarDate] === true ? 'Unlock Day' : 'Block Facility'}
+           </button>
         </div>
       </div>
     );
@@ -827,68 +653,24 @@ const App: React.FC = () => {
       setDbCoaches(updated);
       localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(updated));
       setIsAddingCoach(false);
-      setNewCoach({ name: '', role: '', idCode: '', securityKey: '' });
-    };
-
-    const handleRemoveCoach = (id: string) => {
-      if (dbCoaches.length <= 1) {
-        alert("At least one terminal administrator is required.");
-        return;
-      }
-      if (confirm("Revoke access for this individual?")) {
-        const updated = dbCoaches.filter(c => c.id !== id);
-        setDbCoaches(updated);
-        localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(updated));
-      }
     };
 
     return (
-      <div className="space-y-8 animate-fade-in">
-        <div className="flex justify-between items-center bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <div>
-            <h2 className="text-2xl font-black text-gray-800 tracking-tight italic uppercase">Coaching Staff</h2>
-          </div>
-          <button 
-            onClick={() => setIsAddingCoach(true)}
-            className="bg-tlp-pink text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest"
-          >
-            Onboard Coach
-          </button>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          <h2 className="text-xl font-black uppercase italic">Personnel</h2>
+          <button onClick={() => setIsAddingCoach(true)} className="bg-tlp-pink text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">Onboard Staff</button>
         </div>
-
         {isAddingCoach && (
-          <div className="bg-white p-10 rounded-[2.5rem] border-2 border-tlp-pink shadow-2xl">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-8 italic">New Personnel Authorization</h3>
-            <form onSubmit={handleAddCoach} className="space-y-6">
-              <TextField id="coach-name" label="Legal Name" value={newCoach.name} onChange={e => setNewCoach({...newCoach, name: e.target.value})} required />
-              <TextField id="coach-role" label="Staff Role" value={newCoach.role} onChange={e => setNewCoach({...newCoach, role: e.target.value})} required />
-              <div className="grid grid-cols-2 gap-6">
-                <TextField id="coach-id" label="Coach Access ID" value={newCoach.idCode} onChange={e => setNewCoach({...newCoach, idCode: e.target.value})} required />
-                <TextField id="coach-key" label="Security Key" type="password" value={newCoach.securityKey} onChange={e => setNewCoach({...newCoach, securityKey: e.target.value})} required />
-              </div>
-              <div className="flex gap-4">
-                <button type="submit" className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest">Authorize Staff</button>
-                <button type="button" onClick={() => setIsAddingCoach(false)} className="px-8 border-2 border-slate-100 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest">Cancel</button>
-              </div>
+          <div className="bg-white p-8 rounded-3xl border-2 border-tlp-pink">
+            <form onSubmit={handleAddCoach} className="space-y-4">
+              <TextField id="n-name" label="Name" value={newCoach.name} onChange={e => setNewCoach({...newCoach, name: e.target.value})} required />
+              <TextField id="n-id" label="Access ID" value={newCoach.idCode} onChange={e => setNewCoach({...newCoach, idCode: e.target.value})} required />
+              <TextField id="n-key" label="Key" value={newCoach.securityKey} onChange={e => setNewCoach({...newCoach, securityKey: e.target.value})} required />
+              <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase">Authorize</button>
             </form>
           </div>
         )}
-
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden">
-          <table className="w-full">
-            <tbody className="divide-y divide-slate-100">
-              {dbCoaches.map(coach => (
-                <tr key={coach.id} className="hover:bg-slate-50/50">
-                  <td className="px-8 py-6 font-black text-slate-900 italic uppercase">{coach.name}</td>
-                  <td className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">{coach.role}</td>
-                  <td className="px-8 py-6 text-right">
-                    <button onClick={() => handleRemoveCoach(coach.id)} className="text-slate-300 hover:text-red-500"><i className="fas fa-user-minus"></i></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     );
   };
@@ -898,14 +680,12 @@ const App: React.FC = () => {
       case 1:
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Select Your Discipline</h2>
+            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Select Discipline</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {SPORTS_OPTIONS.map(option => (
                 <button key={option.id} onClick={() => { updateBooking({ sport: option.id as Sport }); nextStep(); }}
-                  className={`p-8 rounded-[2rem] border-2 transition-all flex flex-col items-center justify-center gap-4 ${booking.sport === option.id ? 'border-tlp-pink bg-pink-50' : 'border-gray-100 hover:border-pink-200'}`}>
-                  <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-white text-3xl ${option.id === 'baseball' ? 'bg-slate-900' : 'bg-tlp-pink'}`}>
-                    <i className={`fas ${option.icon}`}></i>
-                  </div>
+                  className={`p-8 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-4 ${booking.sport === option.id ? 'border-tlp-pink bg-pink-50' : 'border-gray-100 hover:border-pink-200'}`}>
+                  <i className={`fas ${option.icon} text-3xl ${option.id === 'baseball' ? 'text-slate-900' : 'text-tlp-pink'}`}></i>
                   <span className="text-xl font-black text-gray-800 uppercase italic">{option.label}</span>
                 </button>
               ))}
@@ -921,7 +701,7 @@ const App: React.FC = () => {
                 <button key={lesson.id} onClick={() => { updateBooking({ lessonType: lesson.id as LessonType }); nextStep(); }}
                   className={`p-6 rounded-[2rem] border-2 text-left transition-all ${booking.lessonType === lesson.id ? 'border-tlp-pink bg-pink-50' : 'border-gray-100 hover:border-pink-200'}`}>
                   <div className="flex justify-between items-start mb-4">
-                    <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-gray-50 flex items-center justify-center text-tlp-pink text-xl"><i className={`fas ${lesson.icon}`}></i></div>
+                    <i className={`fas ${lesson.icon} text-xl text-tlp-pink`}></i>
                     <span className="text-lg font-black text-tlp-pink">{lesson.price}</span>
                   </div>
                   <h3 className="font-black text-gray-800 mb-1 uppercase tracking-tight">{lesson.label}</h3>
@@ -936,25 +716,15 @@ const App: React.FC = () => {
         return (
           <div className="space-y-6">
             <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Pick Training Slot</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-              <div className="space-y-4">
-                <TextField id="booking-date" label="Training Date" type="date" min={getTodayString()} value={booking.date || ''} onChange={(e) => updateBooking({ date: e.target.value })} />
-              </div>
-              <div className={!booking.date ? 'opacity-30 pointer-events-none' : ''}>
-                <div className="grid grid-cols-2 gap-4">
-                  {availableSlots.length > 0 ? availableSlots.map(slot => (
-                    <button key={slot} disabled={!booking.date} onClick={() => updateBooking({ time: slot })} className={`py-8 text-sm font-black rounded-2xl border-2 ${booking.time === slot ? 'bg-tlp-pink text-white border-tlp-pink shadow-xl' : 'bg-white text-gray-600 border-slate-100'}`}>{slot}</button>
-                  )) : (
-                    <div className="col-span-2 py-12 text-center text-slate-300 font-bold italic border-2 border-dashed border-slate-100 rounded-3xl">
-                      No availability for this date.
-                    </div>
-                  )}
-                </div>
-              </div>
+            <TextField id="booking-date" label="Training Date" type="date" min={getTodayString()} value={booking.date || ''} onChange={(e) => updateBooking({ date: e.target.value })} />
+            <div className="grid grid-cols-2 gap-4">
+              {availableSlots.map(slot => (
+                <button key={slot} onClick={() => updateBooking({ time: slot })} className={`py-4 text-xs font-black rounded-xl border-2 ${booking.time === slot ? 'bg-tlp-pink text-white border-tlp-pink shadow-lg' : 'bg-white text-gray-600 border-slate-100'}`}>{slot}</button>
+              ))}
             </div>
             {booking.date && booking.time && (
               <div className="text-center mt-8">
-                <button onClick={nextStep} className="bg-tlp-pink text-white px-10 py-4 rounded-full font-black uppercase tracking-widest shadow-2xl">Confirm Athlete Profile</button>
+                <button onClick={nextStep} className="bg-tlp-pink text-white px-10 py-4 rounded-full font-black uppercase tracking-widest shadow-xl">Confirm Athlete Profile</button>
               </div>
             )}
           </div>
@@ -962,44 +732,19 @@ const App: React.FC = () => {
       case 4:
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Verify & Secure Training</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <TextField id="p-first" label="First Name" value={booking.playerInfo.firstName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, firstName: e.target.value }})} />
-                  <TextField id="p-last" label="Last Name" value={booking.playerInfo.lastName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, lastName: e.target.value }})} />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <TextField id="p-age" label="Age" type="number" value={booking.playerInfo.age} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, age: e.target.value }})} />
-                  <div className="col-span-2"><TextField id="p-parent-name" label="Parent/Guardian" value={booking.playerInfo.parentName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, parentName: e.target.value }})} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <TextField id="p-email" label="Parent Email" type="email" value={booking.playerInfo.parentEmail} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, parentEmail: e.target.value }})} />
-                  <TextField id="p-phone" label="Parent Phone" type="tel" value={booking.playerInfo.parentPhone} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, parentPhone: e.target.value }})} />
-                </div>
-                {aiAdvice && (
-                  <div className="bg-pink-50 p-6 rounded-3xl border border-pink-100">
-                    <p className="text-[10px] font-black text-tlp-pink uppercase tracking-widest mb-2">Trainer Recommendation</p>
-                    <p className="text-xs text-slate-700 font-medium italic">"{aiAdvice}"</p>
-                  </div>
-                )}
-                <button onClick={handleCompleteAuthorization} className="w-full bg-tlp-pink text-white py-5 rounded-2xl font-black text-lg hover:brightness-110 shadow-2xl transition-all uppercase tracking-widest italic">
-                  Authorize & Book Session
-                </button>
-              </div>
-
-              <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl">
-                <h3 className="font-black text-xs text-tlp-pink mb-8 uppercase tracking-[0.3em]">Session Summary</h3>
-                <div className="space-y-4 text-xs font-bold uppercase tracking-tight">
-                  <div className="flex justify-between border-b border-slate-800 pb-3"><span>Program</span><span>{LESSONS.find(l => l.id === booking.lessonType)?.label}</span></div>
-                  <div className="flex justify-between border-b border-slate-800 pb-3"><span>Date</span><span>{booking.date}</span></div>
-                  <div className="flex justify-between border-b border-slate-800 pb-3"><span>Time</span><span>{booking.time}</span></div>
-                  <div className="flex justify-between pt-6">
-                    <span className="text-4xl font-black italic tracking-tighter text-white">{LESSONS.find(l => l.id === booking.lessonType)?.price}</span>
-                  </div>
-                </div>
-              </div>
+            <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Verify & Secure</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TextField id="p-first" label="Athlete First Name" value={booking.playerInfo.firstName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, firstName: e.target.value }})} />
+              <TextField id="p-last" label="Athlete Last Name" value={booking.playerInfo.lastName} onChange={e => updateBooking({ playerInfo: { ...booking.playerInfo, lastName: e.target.value }})} />
             </div>
+            {aiAdvice && (
+              <div className="bg-pink-50 p-4 rounded-2xl border border-pink-100 italic text-[10px] text-slate-700">
+                "{aiAdvice}"
+              </div>
+            )}
+            <button onClick={handleCompleteAuthorization} className="w-full bg-tlp-pink text-white py-5 rounded-2xl font-black text-lg hover:brightness-110 shadow-xl transition-all uppercase tracking-widest italic">
+              Authorize Training
+            </button>
           </div>
         );
       default:
@@ -1007,54 +752,14 @@ const App: React.FC = () => {
     }
   };
 
-  const renderPlayerDrawer = () => {
-    if (!selectedPlayer) return null;
-    return (
-      <>
-        <div className={`fixed inset-0 bg-black/70 backdrop-blur-md z-[100] transition-opacity duration-300 ${isDrawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsDrawerOpen(false)} />
-        <div className={`fixed inset-y-0 right-0 w-full max-w-lg bg-white z-[101] shadow-2xl transition-transform duration-500 transform ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="h-full flex flex-col p-8">
-            <button onClick={() => setIsDrawerOpen(false)} className="self-end text-slate-400 hover:text-slate-900"><i className="fas fa-times"></i></button>
-            <div className="mt-8">
-              <h2 className="text-3xl font-black text-gray-800 tracking-tight uppercase italic">{selectedPlayer.name}</h2>
-              <p className="text-tlp-pink font-black uppercase tracking-widest text-xs mt-2">Athlete Dossier</p>
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  };
-
-  const renderAccountPortal = () => {
-    return (
-      <>
-        <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] transition-opacity duration-300 ${isAccountOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsAccountOpen(false)} />
-        <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white z-[101] transition-transform duration-500 transform ${isAccountOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="h-full flex flex-col p-8">
-            <button onClick={() => setIsAccountOpen(false)} className="self-end text-slate-400 hover:text-slate-900"><i className="fas fa-times"></i></button>
-            <div className="mt-8 flex-grow">
-              <h3 className="text-lg font-black tracking-widest uppercase italic mb-8">My TLP Profile</h3>
-              <p className="text-xs font-bold text-slate-500">Authorized as Guest Athlete</p>
-            </div>
-            <button onClick={handleBackToLogin} className="w-full border-t pt-8 flex items-center justify-center gap-2 text-slate-400 font-black uppercase text-[10px] tracking-widest">
-              <i className="fas fa-sign-out-alt"></i> End Session
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  };
-
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-white flex flex-col lg:flex-row overflow-hidden">
         <div className="hidden lg:flex lg:w-1/2 relative bg-slate-950 overflow-hidden border-r border-slate-900">
-          <img src="https://images.unsplash.com/photo-1601613583279-d2b5160be1cc?q=80&w=2000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105" />
+          <img src="https://images.unsplash.com/photo-1601613583279-d2b5160be1cc?q=80&w=2000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-50" />
           <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent"></div>
-          <div className="relative z-10 flex flex-col justify-end p-20 text-white w-full">
-             <div className="mb-12">
-               <h2 className="text-6xl font-black italic tracking-tighter uppercase leading-[0.9]">Build Your<br /><span className="text-tlp-pink text-7xl">Legacy</span><br />Today</h2>
-             </div>
+          <div className="relative z-10 flex flex-col justify-end p-20 text-white">
+             <h2 className="text-6xl font-black italic tracking-tighter uppercase leading-[0.9]">Build Your<br /><span className="text-tlp-pink text-7xl">Legacy</span></h2>
           </div>
         </div>
         <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-16 lg:p-24 overflow-y-auto bg-white min-h-screen">
@@ -1068,38 +773,24 @@ const App: React.FC = () => {
   if (isAdmin) {
     return (
       <div className="min-h-screen bg-slate-50 flex">
-        <aside className="w-72 bg-slate-950 flex flex-col h-screen sticky top-0 z-50">
-          <div className="p-8 border-b border-slate-900"><TLPLogo size="sm" light={true} /></div>
-          <nav className="flex-grow py-6 flex flex-col">
+        <aside className="w-64 bg-slate-950 flex flex-col h-screen sticky top-0 z-50">
+          <div className="p-6 border-b border-slate-900"><TLPLogo size="sm" light={true} /></div>
+          <nav className="flex-grow py-6">
             <M3SideNavItem active={adminTab === 'dashboard'} label="Overview" icon="fa-chart-pie" onClick={() => setAdminTab('dashboard')} />
             <M3SideNavItem active={adminTab === 'players'} label="Athletes" icon="fa-user-graduate" onClick={() => setAdminTab('players')} />
             <M3SideNavItem active={adminTab === 'schedule'} label="Calendar" icon="fa-calendar-alt" onClick={() => setAdminTab('schedule')} />
-            <M3SideNavItem active={adminTab === 'staff'} label="Staff" icon="fa-user-shield" onClick={() => setAdminTab('staff')} />
+            <M3SideNavItem active={adminTab === 'staff'} label="Personnel" icon="fa-user-shield" onClick={() => setAdminTab('staff')} />
           </nav>
-          <div className="p-6 border-t border-slate-900">
-             <button onClick={handleBackToLogin} className="w-full flex items-center gap-4 px-4 py-3 text-slate-500 hover:text-white transition-colors">
-                <i className="fas fa-power-off text-sm"></i><span className="text-[10px] font-black uppercase tracking-widest">End Session</span>
-             </button>
+          <div className="p-6">
+             <button onClick={handleBackToLogin} className="w-full text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition">Sign Out</button>
           </div>
         </aside>
-        <div className="flex-grow flex flex-col min-w-0 h-screen overflow-hidden">
-          <header className="bg-white border-b border-slate-100 px-10 py-6 flex justify-between items-center shrink-0">
-             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Authorized Terminal / {adminTab}</h2>
-             <div className="flex items-center gap-4">
-                <p className="text-[10px] font-black text-slate-900 uppercase">Coach {activeCoach?.name || 'User'}</p>
-                <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black italic">{(activeCoach?.name || 'U').charAt(0)}</div>
-             </div>
-          </header>
-          <main className="flex-grow overflow-y-auto p-10">
-            <div className="max-w-7xl mx-auto">
-              {adminTab === 'dashboard' && renderAdminDashboard()}
-              {adminTab === 'players' && renderAdminPlayers()}
-              {adminTab === 'schedule' && renderAdminSchedule()}
-              {adminTab === 'staff' && renderAdminStaff()}
-            </div>
-          </main>
+        <div className="flex-grow overflow-y-auto p-10">
+          {adminTab === 'dashboard' && renderAdminDashboard()}
+          {adminTab === 'players' && renderAdminPlayers()}
+          {adminTab === 'schedule' && renderAdminSchedule()}
+          {adminTab === 'staff' && renderAdminStaff()}
         </div>
-        {renderPlayerDrawer()}
       </div>
     );
   }
@@ -1108,7 +799,7 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-20 bg-white">
       <header className="bg-white border-b border-slate-50 sticky top-0 z-50 py-4 px-8 backdrop-blur-md bg-white/90">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-6 cursor-pointer" onClick={() => setStep(1)}>
+          <div className="flex items-center gap-4 cursor-pointer" onClick={() => setStep(1)}>
             <TLPLogo size="sm" />
             <h1 className="text-xl font-black text-slate-900 italic hidden sm:block uppercase">TRAIN LIKE <span className="text-tlp-pink">PROS</span></h1>
           </div>
@@ -1116,36 +807,41 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 mt-16">
-        <div className="mb-20 flex justify-between relative max-w-4xl mx-auto">
+      <main className="max-w-4xl mx-auto px-6 mt-16">
+        <div className="mb-20 flex justify-between relative">
           <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0"></div>
           <div className="absolute top-1/2 left-0 h-1 bg-tlp-pink -translate-y-1/2 z-0 transition-all duration-500" style={{ width: `${(step-1) * 33.33}%` }}></div>
           {[1, 2, 3, 4].map(s => (
-            <div key={s} className="relative z-10 flex flex-col items-center gap-4">
-              <div className={`w-14 h-14 rounded-3xl flex items-center justify-center font-black transition-all ${step === s ? 'bg-tlp-pink text-white scale-110 shadow-xl' : step > s ? 'bg-slate-900 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>{step > s ? <i className="fas fa-check"></i> : s}</div>
+            <div key={s} className="relative z-10 flex flex-col items-center">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all ${step === s ? 'bg-tlp-pink text-white scale-110 shadow-lg' : step > s ? 'bg-slate-900 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>{step > s ? <i className="fas fa-check"></i> : s}</div>
             </div>
           ))}
         </div>
 
-        <div className="mx-auto max-w-4xl bg-white rounded-[4rem] shadow-2xl border border-slate-50 p-12 min-h-[500px] animate-fade-in relative">
+        <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-50 p-10 min-h-[400px] animate-fade-in">
           {renderPlayerSteps()}
-          <div className="mt-16 flex justify-between items-center border-t border-slate-50 pt-8">
-            {step > 1 ? (
-              <button onClick={prevStep} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-tlp-pink">Return</button>
-            ) : <div />}
-            <span className="text-[10px] text-slate-500 font-black tracking-widest uppercase">Step {step}/4</span>
+          <div className="mt-12 flex justify-between items-center pt-8 border-t border-slate-50">
+            {step > 1 ? <button onClick={prevStep} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-tlp-pink">Return</button> : <div />}
+            <span className="text-[10px] text-slate-500 font-black uppercase">Step {step}/4</span>
           </div>
         </div>
       </main>
 
-      {renderAccountPortal()}
-      {renderPlayerDrawer()}
+      {isAccountOpen && (
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setIsAccountOpen(false)}></div>
+          <div className="relative w-80 bg-white h-full p-8 shadow-2xl animate-fade-in">
+            <button onClick={() => setIsAccountOpen(false)} className="mb-8"><i className="fas fa-times"></i></button>
+            <h3 className="text-lg font-black uppercase italic mb-8">Account</h3>
+            <button onClick={handleBackToLogin} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest">Sign Out</button>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+        .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
         .date-input-field::-webkit-calendar-picker-indicator { position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0; cursor: pointer; opacity: 0; z-index: 20; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f1f5f9; border-radius: 10px; }
       `}</style>
     </div>
   );
