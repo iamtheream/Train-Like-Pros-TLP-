@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: './', 
+  // Updated base to match your GitHub repository name
+  base: '/Train-Like-Pros-TLP-/', 
   define: {
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
   },
