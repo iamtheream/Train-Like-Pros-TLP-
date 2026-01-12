@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { BookingState, Sport, LessonType } from './types';
 import { SPORTS_OPTIONS, LESSONS, TIME_SLOTS } from './constants';
@@ -207,40 +206,44 @@ const App: React.FC = () => {
     const today = getTodayString();
     setSelectedCalendarDate(today);
 
-    const storedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS);
-    const storedBookings = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
-    const storedBlocked = localStorage.getItem(STORAGE_KEYS.BLOCKED);
-    const storedCoaches = localStorage.getItem(STORAGE_KEYS.COACHES);
-    
-    if (storedPlayers) setDbPlayers(JSON.parse(storedPlayers));
-    if (storedBookings) setDbBookings(JSON.parse(storedBookings));
-    if (storedBlocked) setBlockedSlots(JSON.parse(storedBlocked));
-    
-    if (storedCoaches) {
-      setDbCoaches(JSON.parse(storedCoaches));
-    } else {
-      const initialCoaches = [
-        { id: 'c1', name: 'Rodriguez', role: 'Facility Director', idCode: 'COACH1', securityKey: 'admin123' }
-      ];
-      setDbCoaches(initialCoaches);
-      localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(initialCoaches));
-    }
+    try {
+      const storedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS);
+      const storedBookings = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
+      const storedBlocked = localStorage.getItem(STORAGE_KEYS.BLOCKED);
+      const storedCoaches = localStorage.getItem(STORAGE_KEYS.COACHES);
+      
+      if (storedPlayers) setDbPlayers(JSON.parse(storedPlayers));
+      if (storedBookings) setDbBookings(JSON.parse(storedBookings));
+      if (storedBlocked) setBlockedSlots(JSON.parse(storedBlocked));
+      
+      if (storedCoaches) {
+        setDbCoaches(JSON.parse(storedCoaches));
+      } else {
+        const initialCoaches = [
+          { id: 'c1', name: 'Rodriguez', role: 'Facility Director', idCode: 'COACH1', securityKey: 'admin123' }
+        ];
+        setDbCoaches(initialCoaches);
+        localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(initialCoaches));
+      }
 
-    if (!storedPlayers) {
-      const initialPlayers = [
-        { id: 'p1', name: 'Alex Rodriguez', age: 14, sessions: 12, history: ['Hitting', 'Fielding'], parent: { name: 'Enrique Rodriguez', email: 'enrique.r@email.com', phone: '(555) 123-4567' } },
-        { id: 'p2', name: 'Babe Ruth', age: 12, sessions: 8, history: ['Pitching'], parent: { name: 'George Ruth Sr.', email: 'george.ruth@email.com', phone: '(555) 987-6543' } }
-      ];
-      setDbPlayers(initialPlayers);
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(initialPlayers));
-    }
+      if (!storedPlayers) {
+        const initialPlayers = [
+          { id: 'p1', name: 'Alex Rodriguez', age: 14, sessions: 12, history: ['Hitting', 'Fielding'], parent: { name: 'Enrique Rodriguez', email: 'enrique.r@email.com', phone: '(555) 123-4567' } },
+          { id: 'p2', name: 'Babe Ruth', age: 12, sessions: 8, history: ['Pitching'], parent: { name: 'George Ruth Sr.', email: 'george.ruth@email.com', phone: '(555) 987-6543' } }
+        ];
+        setDbPlayers(initialPlayers);
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(initialPlayers));
+      }
 
-    if (!storedBookings) {
-      const initialBookings = [
-        { id: 1, player: 'Alex Rodriguez', time: '09:00 AM', date: '2024-05-20', lesson: 'Hitting', status: 'Confirmed' }
-      ];
-      setDbBookings(initialBookings);
-      localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(initialBookings));
+      if (!storedBookings) {
+        const initialBookings = [
+          { id: 1, player: 'Alex Rodriguez', time: '09:00 AM', date: '2024-05-20', lesson: 'Hitting', status: 'Confirmed' }
+        ];
+        setDbBookings(initialBookings);
+        localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(initialBookings));
+      }
+    } catch (e) {
+      console.error("Critical: Failed to load persistent data", e);
     }
   }, []);
   
@@ -359,7 +362,7 @@ const App: React.FC = () => {
       updated[date] = [slot];
     } else {
       if (current.includes(slot)) {
-        // Fix: Use local variable to avoid accessing .length on string[] | boolean union
+        // Use local variable to narrow type before accessing .length
         const filtered = current.filter(s => s !== slot);
         if (filtered.length === 0) {
           delete updated[date];
@@ -377,9 +380,12 @@ const App: React.FC = () => {
   const handleLogin = (e: React.FormEvent, type: 'user' | 'admin' = 'user') => {
     e.preventDefault();
     if (type === 'admin') {
+      const cleanId = adminLoginId.trim().toUpperCase();
+      const cleanKey = adminLoginKey.trim();
+
       const coach = dbCoaches.find(c => 
-        c.idCode.toUpperCase() === adminLoginId.toUpperCase() && 
-        c.securityKey === adminLoginKey
+        c.idCode.trim().toUpperCase() === cleanId && 
+        c.securityKey.trim() === cleanKey
       );
       
       if (coach) {
@@ -387,11 +393,10 @@ const App: React.FC = () => {
         setIsAdmin(true);
         setActiveCoach(coach);
         setIsGuest(false);
-        // Reset login state for security
         setAdminLoginId('');
         setAdminLoginKey('');
       } else {
-        alert('Access Denied. Invalid Coach ID or Security Key.');
+        alert('Access Denied. Please verify your Coach ID and Security Key. Check for typos or extra spaces.');
       }
     } else {
       setIsAuthenticated(true);
@@ -445,7 +450,6 @@ const App: React.FC = () => {
     // Filter out blocked slots
     const dayBlockedSlots = blockedSlots[booking.date];
     if (Array.isArray(dayBlockedSlots)) {
-      // Fix: dayBlockedSlots is local variable, Array.isArray narrowing works reliably here
       defaultSlots = defaultSlots.filter(s => !dayBlockedSlots.includes(s));
     }
 
@@ -485,8 +489,12 @@ const App: React.FC = () => {
               <i className="fas fa-user-clock text-gray-300"></i> Continue as Guest
             </button>
             <div className="text-left pt-6 border-t border-gray-100 space-y-4">
-              <p className="text-sm text-gray-500 font-medium">New athlete? <button onClick={() => setAuthView('register')} className="font-black text-tlp-pink hover:underline uppercase tracking-tight">Create Account</button></p>
-              <div className="pt-4"><button onClick={() => setAuthView('admin')} className="text-[10px] font-black text-gray-300 hover:text-tlp-pink uppercase tracking-[0.3em] transition-colors">Admin Portal Access</button></div>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-gray-500 font-medium">New athlete? <button onClick={() => setAuthView('register')} className="font-black text-tlp-pink hover:underline uppercase tracking-tight">Create Account</button></p>
+                <button onClick={() => setAuthView('admin')} className="w-fit text-[11px] font-black text-slate-400 hover:text-tlp-pink uppercase tracking-[0.25em] transition-colors flex items-center gap-2">
+                   <i className="fas fa-user-shield"></i> Coach Terminal Entry
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -519,11 +527,16 @@ const App: React.FC = () => {
               <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-lg hover:bg-black shadow-lg transition-all uppercase tracking-widest italic">
                 Authorize Session
               </button>
-              <button type="button" onClick={() => setAuthView('login')} className="w-full text-gray-400 font-black py-2 hover:text-tlp-pink transition text-xs uppercase tracking-widest text-left">Back to Player Site</button>
+              <button type="button" onClick={() => setAuthView('login')} className="w-full text-slate-500 font-black py-2 hover:text-tlp-pink transition text-xs uppercase tracking-[0.2em] text-left flex items-center gap-2">
+                <i className="fas fa-arrow-left"></i> Back to Player Site
+              </button>
             </form>
-            <div className="text-left mt-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Default Dev Access</p>
-               <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-tight">ID: COACH1 • Key: admin123</p>
+            <div className="text-left mt-6 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+               <div className="flex items-center gap-2 mb-2">
+                 <i className="fas fa-info-circle text-slate-400 text-[10px]"></i>
+                 <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Development Access</p>
+               </div>
+               <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight">ID: COACH1 • Key: admin123</p>
             </div>
           </div>
         );
@@ -545,7 +558,7 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4"><TextField id="reg-first" label="First Name" required /><TextField id="reg-last" label="Last Name" required /></div>
                 <TextField id="reg-email" label="Email Address" type="email" required />
                 <button type="submit" className="w-full bg-tlp-pink text-white py-4 rounded-xl font-black text-lg hover:brightness-110 shadow-lg transition-all uppercase tracking-widest italic">Sign Up</button>
-                <button type="button" onClick={() => setAuthView('login')} className="w-full text-gray-400 font-black py-2 text-xs uppercase tracking-widest text-left hover:text-tlp-pink transition">Return to Login</button>
+                <button type="button" onClick={() => setAuthView('login')} className="w-full text-slate-500 font-black py-2 text-xs uppercase tracking-widest text-left hover:text-tlp-pink transition">Return to Login</button>
               </form>
             </div>
           </div>
@@ -740,7 +753,6 @@ const App: React.FC = () => {
     return (
       <div className="space-y-8 animate-fade-in pb-20">
         <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col lg:flex-row">
-          {/* Main Calendar View */}
           <div className="flex-grow">
             <div className="p-8 border-b flex justify-between items-center bg-slate-50/50">
               <div className="flex items-center gap-4">
@@ -772,7 +784,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Sidebar Detail / Block Controls */}
           <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-100 bg-slate-50/20 p-8">
             <div className="mb-10">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Selected Date</p>
@@ -796,7 +807,6 @@ const App: React.FC = () => {
                 {!isSelectedDateBlocked && (
                   <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                     {TIME_SLOTS.map(slot => {
-                      // Fix: Capture dayBlocked in local variable to narrow type before accessing .includes
                       const dayBlocked = blockedSlots[selectedCalendarDate];
                       const isSlotBlocked = Array.isArray(dayBlocked) && dayBlocked.includes(slot);
                       const isSlotBooked = selectedDateBookings.some(b => b.time === slot);
@@ -1196,7 +1206,6 @@ const App: React.FC = () => {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-white flex flex-col lg:flex-row overflow-hidden selection:bg-tlp-pink selection:text-white">
-        {/* Left Side: Cinematic Visual Column */}
         <div className="hidden lg:flex lg:w-1/2 relative bg-slate-950 overflow-hidden border-r border-slate-900">
           <img 
             src="https://images.unsplash.com/photo-1601613583279-d2b5160be1cc?q=80&w=2000&auto=format&fit=crop" 
@@ -1229,7 +1238,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Side: Authentication Column */}
         <div className="w-full lg:w-1/2 flex flex-col p-8 md:p-16 lg:p-24 overflow-y-auto bg-white min-h-screen lg:min-h-0">
            <div className="mb-20 transform hover:scale-105 transition-all duration-500 cursor-pointer w-fit self-start">
              <TLPLogo size="lg" />
@@ -1256,7 +1264,6 @@ const App: React.FC = () => {
   if (isAdmin) {
     return (
       <div className="min-h-screen bg-slate-50 flex">
-        {/* Dark High-Contrast Side Navigation Bar */}
         <aside className="w-72 bg-slate-950 border-r border-slate-900 flex flex-col h-screen sticky top-0 z-50">
           <div className="p-8 border-b border-slate-900">
             <TLPLogo size="sm" light={true} />
@@ -1267,30 +1274,10 @@ const App: React.FC = () => {
           </div>
           
           <nav className="flex-grow py-6 flex flex-col">
-            <M3SideNavItem 
-              active={adminTab === 'dashboard'} 
-              label="Overview" 
-              icon="fa-chart-pie" 
-              onClick={() => setAdminTab('dashboard')} 
-            />
-            <M3SideNavItem 
-              active={adminTab === 'players'} 
-              label="Athletes" 
-              icon="fa-user-graduate" 
-              onClick={() => setAdminTab('players')} 
-            />
-            <M3SideNavItem 
-              active={adminTab === 'schedule'} 
-              label="Calendar" 
-              icon="fa-calendar-alt" 
-              onClick={() => setAdminTab('schedule')} 
-            />
-            <M3SideNavItem 
-              active={adminTab === 'staff'} 
-              label="Staff" 
-              icon="fa-user-shield" 
-              onClick={() => setAdminTab('staff')} 
-            />
+            <M3SideNavItem active={adminTab === 'dashboard'} label="Overview" icon="fa-chart-pie" onClick={() => setAdminTab('dashboard')} />
+            <M3SideNavItem active={adminTab === 'players'} label="Athletes" icon="fa-user-graduate" onClick={() => setAdminTab('players')} />
+            <M3SideNavItem active={adminTab === 'schedule'} label="Calendar" icon="fa-calendar-alt" onClick={() => setAdminTab('schedule')} />
+            <M3SideNavItem active={adminTab === 'staff'} label="Staff" icon="fa-user-shield" onClick={() => setAdminTab('staff')} />
           </nav>
 
           <div className="p-6 border-t border-slate-900 space-y-4">
@@ -1298,17 +1285,13 @@ const App: React.FC = () => {
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Feed: Active</span>
              </div>
-             <button 
-                onClick={handleBackToLogin} 
-                className="w-full flex items-center gap-4 px-4 py-3 text-slate-500 hover:text-white transition-colors group"
-             >
+             <button onClick={handleBackToLogin} className="w-full flex items-center gap-4 px-4 py-3 text-slate-500 hover:text-white transition-colors group">
                 <i className="fas fa-power-off text-sm group-hover:rotate-12 transition-transform"></i>
                 <span className="text-[10px] font-black uppercase tracking-widest">End Session</span>
              </button>
           </div>
         </aside>
 
-        {/* Main Admin Content Area */}
         <div className="flex-grow flex flex-col min-w-0 h-screen overflow-hidden">
           <header className="bg-white border-b border-slate-100 px-10 py-6 flex justify-between items-center bg-white/50 backdrop-blur-md shrink-0">
              <div>
