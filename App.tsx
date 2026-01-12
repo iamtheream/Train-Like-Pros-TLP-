@@ -674,20 +674,6 @@ const App: React.FC = () => {
         return (
           <div className="space-y-8 animate-fade-in">
             <h2 className="text-2xl font-black text-gray-800 text-center tracking-tight uppercase italic">Final Authorization</h2>
-            <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6">
-              <div className="flex justify-between items-start border-b border-slate-200/60 pb-6">
-                <div><p className="text-[10px] font-black text-slate-400 uppercase mb-1">Training Roster</p><h3 className="text-lg font-black text-slate-900 uppercase italic">{booking.sport} Elite Development</h3></div>
-                <div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Investment</p><h3 className="text-xl font-black text-tlp-pink">${totalInvestment}</h3></div>
-              </div>
-              <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                {booking.selectedSessions.map((s, idx) => (
-                  <div key={idx} className="flex justify-between items-center py-3 bg-white px-4 rounded-xl border border-slate-100 shadow-sm">
-                    <div><p className="text-[10px] font-black text-slate-900 uppercase italic">{s.date} @ {s.time}</p><p className="text-[9px] font-bold text-slate-400 uppercase">{s.lessonType === 'small-group' ? 'Group Training' : 'Private Focus'}</p></div>
-                    <span className="text-xs font-black text-tlp-pink">${s.price}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
             <div className="space-y-6">
                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Athlete Information</h3>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -725,6 +711,23 @@ const App: React.FC = () => {
                  </div>
                )}
             </div>
+            
+            {/* Session Summary moved under Payment Information */}
+            <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6">
+              <div className="flex justify-between items-start border-b border-slate-200/60 pb-6">
+                <div><p className="text-[10px] font-black text-slate-400 uppercase mb-1">Training Roster</p><h3 className="text-lg font-black text-slate-900 uppercase italic">{booking.sport} Elite Development</h3></div>
+                <div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Investment</p><h3 className="text-xl font-black text-tlp-pink">${totalInvestment}</h3></div>
+              </div>
+              <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {booking.selectedSessions.map((s, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-3 bg-white px-4 rounded-xl border border-slate-100 shadow-sm">
+                    <div><p className="text-[10px] font-black text-slate-900 uppercase italic">{s.date} @ {s.time}</p><p className="text-[9px] font-bold text-slate-400 uppercase">{s.lessonType === 'small-group' ? 'Group Training' : 'Private Focus'}</p></div>
+                    <span className="text-xs font-black text-tlp-pink">${s.price}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <button onClick={handleCompleteAuthorization} className="w-full bg-tlp-pink text-white py-6 rounded-2xl font-black text-xl hover:brightness-110 shadow-2xl transition-all uppercase tracking-widest italic flex items-center justify-center gap-3 mt-4"><i className="fas fa-lock text-sm opacity-50"></i> Authorize ${totalInvestment} Training</button>
           </div>
         );
