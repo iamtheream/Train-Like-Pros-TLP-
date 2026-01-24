@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { BookingState, Sport, LessonType, TrainingSession, UserRole } from './types.ts';
 import { SPORTS_OPTIONS, LESSONS, TIME_SLOTS } from './constants.ts';
 import { getTrainingAdvice } from './services/geminiService.ts';
@@ -7,13 +8,11 @@ type AuthView = 'login' | 'register' | 'forgot' | 'admin';
 type AdminTab = 'dashboard' | 'players' | 'schedule' | 'staff';
 type PaymentMethod = 'card' | 'paypal' | 'venmo';
 
-const STORAGE_KEYS = {
-  PLAYERS: 'tlp_database_players',
-  BOOKINGS: 'tlp_database_bookings',
-  BLOCKED: 'tlp_database_blocked_slots',
-  COACHES: 'tlp_database_coaches',
-  CUSTOM_SLOTS: 'tlp_database_custom_slots',
-};
+// Using provided Supabase credentials
+const SUPABASE_URL = 'https://xtfovrhssnqshwsnkcew.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0Zm92cmhzc25xc2h3c25rY2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNzk4MDYsImV4cCI6MjA4NDg1NTgwNn0.EA-9C81uFIQE0fZ9667TVlu00kZCmteaRmmz3pWbMU8';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const TLPLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' | 'xl'; light?: boolean }> = ({ size = 'md', light = false }) => {
   const heightClass = size === 'sm' ? 'h-10' : size === 'md' ? 'h-16' : size === 'lg' ? 'h-24' : 'h-40';
@@ -24,8 +23,8 @@ const TLPLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' | 'xl'; light?: boolean }> =
     <div className={`${heightClass} flex items-center justify-center ${light ? 'brightness-0 invert' : ''}`}>
       {!imgError ? (
         <img 
-            src={logoUrl} 
-            alt="Train Like Pros" 
+          src={logoUrl} 
+          alt="Train Like Pros" 
           className="h-full w-auto object-contain block drop-shadow-md"
           onError={() => setImgError(true)}
         />
@@ -180,6 +179,8 @@ const App: React.FC = () => {
   const [step, setStep] = useState(1);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [loadingAdvice, setLoadingAdvice] = useState(false);
+  const [isDbLoading, setIsDbLoading] = useState(true);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   const [adminLoginId, setAdminLoginId] = useState('');
   const [adminLoginKey, setAdminLoginKey] = useState('');
@@ -229,68 +230,65 @@ const App: React.FC = () => {
     return `${year}-${month}-${day}`;
   };
 
-  useEffect(() => {
+  const fetchDatabase = async () => {
+    setIsDbLoading(true);
+    setDbError(null);
     try {
-      const storedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS);
-      const storedBookings = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
-      const storedBlocked = localStorage.getItem(STORAGE_KEYS.BLOCKED);
-      const storedCoaches = localStorage.getItem(STORAGE_KEYS.COACHES);
-      const storedCustomSlots = localStorage.getItem(STORAGE_KEYS.CUSTOM_SLOTS);
-      
-      const today = new Date();
-      const format = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      // 1. Fetch Coaches
+      const { data: coaches, error: cErr } = await supabase.from('coaches').select('*');
+      if (cErr) throw cErr;
+      if (coaches) setDbCoaches(coaches);
 
-      if (storedCoaches) {
-        setDbCoaches(JSON.parse(storedCoaches));
-      } else {
-        const initialCoaches = [
-          { id: 'c1', name: 'Rodriguez', role: 'Facility Director', idCode: 'COACH1', securityKey: 'admin123' }
-        ];
-        setDbCoaches(initialCoaches);
-        localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(initialCoaches));
+      // 2. Fetch Players
+      const { data: players, error: pErr } = await supabase.from('players').select('*');
+      if (pErr) throw pErr;
+      if (players) setDbPlayers(players.map(p => ({
+        ...p,
+        history: p.training_history || []
+      })));
+
+      // 3. Fetch Bookings
+      const { data: bookings, error: bErr } = await supabase.from('bookings').select('*');
+      if (bErr) throw bErr;
+      if (bookings) setDbBookings(bookings.map(b => ({
+        id: b.id,
+        player: b.player_name,
+        time: b.session_time,
+        date: b.session_date,
+        lesson: b.lesson_label,
+        status: b.status
+      })));
+
+      // 4. Fetch Facility Closures
+      const { data: closures, error: clErr } = await supabase.from('facility_closures').select('*');
+      if (clErr) throw clErr;
+      if (closures) {
+        const blocked: Record<string, boolean> = {};
+        closures.forEach(c => blocked[c.closed_date] = true);
+        setBlockedSlots(blocked);
       }
 
-      if (storedPlayers) {
-        setDbPlayers(JSON.parse(storedPlayers));
-      } else {
-        const initialPlayers = [
-          { id: 'p1', name: 'Alex Rodriguez', age: 14, sessions: 22, history: ['Hitting Fundamentals', 'Elite Fielding', 'Hitting Fundamentals'], parent: { name: 'Enrique Rodriguez', email: 'enrique.r@email.com', phone: '(555) 123-4567' } },
-          { id: 'p2', name: 'Babe Ruth', age: 12, sessions: 18, history: ['Pitching & Velocity', 'Pitching & Velocity'], parent: { name: 'George Ruth Sr.', email: 'george.ruth@email.com', phone: '(555) 987-6543' } },
-          { id: 'p3', name: 'Derek Jeter', age: 15, sessions: 12, history: ['Elite Fielding'], parent: { name: 'Dot Jeter', email: 'dot.jeter@email.com', phone: '(555) 444-5555' } },
-          { id: 'p4', name: 'Mike Trout', age: 13, sessions: 5, history: ['Hitting Fundamentals'], parent: { name: 'Jeff Trout', email: 'jeff.trout@email.com', phone: '(555) 222-1111' } },
-          { id: 'p5', name: 'Shohei Ohtani', age: 16, sessions: 40, history: ['Pitching & Velocity', 'Hitting Fundamentals'], parent: { name: 'Toru Ohtani', email: 'toru.o@email.com', phone: '(555) 333-8888' } },
-          { id: 'p6', name: 'Mookie Betts', age: 14, sessions: 15, history: ['Hitting Fundamentals', 'Elite Fielding'], parent: { name: 'Diana Betts', email: 'd.betts@email.com', phone: '(555) 777-9999' } }
-        ];
-        setDbPlayers(initialPlayers);
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(initialPlayers));
+      // 5. Fetch Custom Shifts
+      const { data: shifts, error: sErr } = await supabase.from('custom_shifts').select('*');
+      if (sErr) throw sErr;
+      if (shifts) {
+        const custom: Record<string, string[]> = {};
+        shifts.forEach(s => {
+          if (!custom[s.shift_date]) custom[s.shift_date] = [];
+          custom[s.shift_date].push(s.shift_time);
+        });
+        setCustomTimeSlots(custom);
       }
-
-      if (storedBookings) {
-        setDbBookings(JSON.parse(storedBookings));
-      } else {
-        const initialBookings = [];
-        setDbBookings(initialBookings);
-        localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(initialBookings));
-      }
-
-      if (storedBlocked) {
-        setBlockedSlots(JSON.parse(storedBlocked));
-      } else {
-        const initialBlocked = {};
-        setBlockedSlots(initialBlocked);
-        localStorage.setItem(STORAGE_KEYS.BLOCKED, JSON.stringify(initialBlocked));
-      }
-
-      if (storedCustomSlots) {
-        setCustomTimeSlots(JSON.parse(storedCustomSlots));
-      } else {
-        const initialCustom = {};
-        setCustomTimeSlots(initialCustom);
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_SLOTS, JSON.stringify(initialCustom));
-      }
-    } catch (e) {
-      console.error("Critical: Failed to load persistent data", e);
+    } catch (e: any) {
+      console.error("Database sync error:", e);
+      setDbError("Unable to synchronize with the training database. Please try again.");
+    } finally {
+      setIsDbLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchDatabase();
   }, []);
 
   useEffect(() => {
@@ -347,43 +345,49 @@ const App: React.FC = () => {
     }
   };
 
-  const handleCompleteAuthorization = () => {
+  const handleCompleteAuthorization = async () => {
     if (!booking.playerInfo.firstName || !booking.playerInfo.lastName) {
       alert("Please enter the athlete's full name to authorize.");
       return;
     }
     const fullName = `${booking.playerInfo.firstName} ${booking.playerInfo.lastName}`;
-    let updatedPlayers = [...dbPlayers];
-    const existingPlayerIndex = dbPlayers.findIndex(p => p.name.toLowerCase() === fullName.toLowerCase());
-    if (existingPlayerIndex >= 0) {
-      updatedPlayers[existingPlayerIndex] = {
-        ...updatedPlayers[existingPlayerIndex],
-        sessions: updatedPlayers[existingPlayerIndex].sessions + booking.selectedSessions.length,
-        history: [...updatedPlayers[existingPlayerIndex].history, ...booking.selectedSessions.map(s => LESSONS.find(l => l.id === s.lessonType)?.label || 'Training')]
-      };
+    
+    // DB Logic for Player
+    let athleteId = '';
+    const existingPlayer = dbPlayers.find(p => p.name.toLowerCase() === fullName.toLowerCase());
+    
+    if (existingPlayer) {
+      athleteId = existingPlayer.id;
+      const newHistory = [...existingPlayer.history, ...booking.selectedSessions.map(s => LESSONS.find(l => l.id === s.lessonType)?.label || 'Training')];
+      await supabase.from('players').update({ 
+        training_history: newHistory 
+      }).eq('id', athleteId);
     } else {
-      updatedPlayers.push({
-        id: `p_${Date.now()}`,
+      const { data: newPlayer } = await supabase.from('players').insert({
         name: fullName,
         age: parseInt(booking.playerInfo.age || '0'),
-        sessions: booking.selectedSessions.length,
-        history: booking.selectedSessions.map(s => LESSONS.find(l => l.id === s.lessonType)?.label || 'Training'),
-        parent: { name: booking.playerInfo.parentName, email: booking.playerInfo.parentEmail, phone: booking.playerInfo.parentPhone }
-      });
+        parent_name: booking.playerInfo.parentName,
+        parent_email: booking.playerInfo.parentEmail,
+        parent_phone: booking.playerInfo.parentPhone,
+        notes: booking.playerInfo.notes,
+        training_history: booking.selectedSessions.map(s => LESSONS.find(l => l.id === s.lessonType)?.label || 'Training')
+      }).select().single();
+      if (newPlayer) athleteId = newPlayer.id;
     }
-    const newBookings = booking.selectedSessions.map((s, idx) => ({
-      id: Date.now() + idx,
-      player: fullName,
-      time: s.time,
-      date: s.date,
-      lesson: LESSONS.find(l => l.id === s.lessonType)?.label || 'Training',
-      status: 'Confirmed'
+
+    // DB Logic for Bookings
+    const bookingPayload = booking.selectedSessions.map(s => ({
+      player_id: athleteId,
+      player_name: fullName,
+      session_date: s.date,
+      session_time: s.time,
+      lesson_type: s.lessonType,
+      lesson_label: LESSONS.find(l => l.id === s.lessonType)?.label || 'Training',
+      price: s.price
     }));
-    const updatedBookingsList = [...dbBookings, ...newBookings];
-    setDbPlayers(updatedPlayers);
-    setDbBookings(updatedBookingsList);
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(updatedPlayers));
-    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updatedBookingsList));
+    await supabase.from('bookings').insert(bookingPayload);
+
+    await fetchDatabase();
     alert(`Confirmed! ${booking.selectedSessions.length} training sessions have been added to the athlete's profile.`);
     setStep(1);
     setBooking({
@@ -394,95 +398,68 @@ const App: React.FC = () => {
     });
   };
 
-  const toggleBlockedDay = (date: string) => {
-    const updated = { ...blockedSlots };
-    if (updated[date] === true) {
-      delete updated[date];
+  const toggleBlockedDay = async (date: string) => {
+    if (blockedSlots[date] === true) {
+      await supabase.from('facility_closures').delete().eq('closed_date', date);
     } else {
-      updated[date] = true;
+      await supabase.from('facility_closures').insert({ closed_date: date, reason: 'Staff Block' });
     }
-    setBlockedSlots(updated);
-    localStorage.setItem(STORAGE_KEYS.BLOCKED, JSON.stringify(updated));
+    await fetchDatabase();
   };
 
-  const addCustomTimeSlot = (date: string, time: string) => {
+  const addCustomTimeSlot = async (date: string, time: string) => {
     if (!time) return;
-    const updated = { ...customTimeSlots };
-    if (!updated[date]) updated[date] = [];
-    if (!updated[date].includes(time)) {
-      updated[date] = [...updated[date], time];
-    }
-    setCustomTimeSlots(updated);
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_SLOTS, JSON.stringify(updated));
+    await supabase.from('custom_shifts').insert({ shift_date: date, shift_time: time });
+    await fetchDatabase();
     setNewCustomSlotTime('');
     setIsAddingCustomSlot(false);
   };
 
-  const removeCustomTimeSlot = (date: string, time: string) => {
-    const updated = { ...customTimeSlots };
-    if (updated[date]) {
-      updated[date] = updated[date].filter(t => t !== time);
-      if (updated[date].length === 0) delete updated[date];
-    }
-    setCustomTimeSlots(updated);
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_SLOTS, JSON.stringify(updated));
+  const removeCustomTimeSlot = async (date: string, time: string) => {
+    await supabase.from('custom_shifts').delete().eq('shift_date', date).eq('shift_time', time);
+    await fetchDatabase();
   };
 
-  const handleManualBookingSubmit = (e: React.FormEvent) => {
+  const handleManualBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualBookingData.playerId) {
-      alert("Please select an athlete.");
-      return;
-    }
+    if (!manualBookingData.playerId) return;
     const athlete = dbPlayers.find(p => p.id === manualBookingData.playerId);
     if (!athlete) return;
-    const newBooking = {
-      id: Date.now(),
-      player: athlete.name,
-      time: manualBookingData.time,
-      date: adminSelectedDate,
-      lesson: LESSONS.find(l => l.id === manualBookingData.lessonId)?.label || 'Training',
-      status: 'Confirmed'
-    };
-    const updatedBookings = [...dbBookings, newBooking];
-    setDbBookings(updatedBookings);
-    localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(updatedBookings));
-    const updatedPlayers = dbPlayers.map(p => {
-      if (p.id === athlete.id) {
-        return {
-          ...p,
-          sessions: (p.sessions || 0) + 1,
-          history: [...(p.history || []), newBooking.lesson]
-        };
-      }
-      return p;
+
+    await supabase.from('bookings').insert({
+      player_id: athlete.id,
+      player_name: athlete.name,
+      session_date: adminSelectedDate,
+      session_time: manualBookingData.time,
+      lesson_type: manualBookingData.lessonId,
+      lesson_label: LESSONS.find(l => l.id === manualBookingData.lessonId)?.label || 'Training',
+      price: manualBookingData.lessonId === 'small-group' ? 60 : 50
     });
-    setDbPlayers(updatedPlayers);
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(updatedPlayers));
+
+    const newHistory = [...(athlete.history || []), LESSONS.find(l => l.id === manualBookingData.lessonId)?.label || 'Training'];
+    await supabase.from('players').update({ training_history: newHistory }).eq('id', athlete.id);
+
+    await fetchDatabase();
     setShowManualBooking(false);
-    alert(`Successfully scheduled ${athlete.name} for ${newBooking.time}.`);
   };
 
-  const handleAddStaff = (e: React.FormEvent) => {
+  const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newStaff = {
-      ...newStaffData,
-      id: `c_${Date.now()}`,
-      idCode: newStaffData.idCode.toUpperCase()
-    };
-    const updatedCoaches = [...dbCoaches, newStaff];
-    setDbCoaches(updatedCoaches);
-    localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(updatedCoaches));
+    await supabase.from('coaches').insert({
+      name: newStaffData.name,
+      role: newStaffData.role,
+      id_code: newStaffData.idCode.toUpperCase(),
+      security_key: newStaffData.securityKey
+    });
+    await fetchDatabase();
     setNewStaffData({ name: '', role: '', idCode: '', securityKey: '' });
     setIsStaffDrawerOpen(false);
-    alert(`Successfully onboarded ${newStaff.name} as ${newStaff.role}.`);
   };
 
-  const handleRemoveStaff = (staffId: string, staffName: string) => {
+  const handleRemoveStaff = async (staffId: string, staffName: string) => {
     if (window.confirm(`Are you sure you want to revoke access for ${staffName}?`)) {
-      const updatedCoaches = dbCoaches.filter(c => c.id !== staffId);
-      setDbCoaches(updatedCoaches);
-      localStorage.setItem(STORAGE_KEYS.COACHES, JSON.stringify(updatedCoaches));
+      await supabase.from('coaches').delete().eq('id', staffId);
+      await fetchDatabase();
     }
   };
 
@@ -491,8 +468,7 @@ const App: React.FC = () => {
     if (type === 'admin') {
       const cleanId = adminLoginId.trim().toUpperCase();
       const cleanKey = adminLoginKey.trim();
-      // Validating against the dynamic "database" (dbCoaches state)
-      const coach = dbCoaches.find(c => c.idCode.trim().toUpperCase() === cleanId && c.securityKey.trim() === cleanKey);
+      const coach = dbCoaches.find(c => c.id_code.trim().toUpperCase() === cleanId && c.security_key.trim() === cleanKey);
       if (coach) {
         setIsAuthenticated(true);
         setIsAdmin(true);
@@ -516,7 +492,6 @@ const App: React.FC = () => {
 
   const getAvailableTimeSlots = (date: string) => {
     if (!date) return [];
-    // Database connection: respect facility closures
     if (blockedSlots[date] === true) return [];
     
     const dateObj = new Date(date + 'T00:00:00');
@@ -538,7 +513,6 @@ const App: React.FC = () => {
       slots = [...privateSlots, ...groupSlots];
     }
     
-    // Database connection: respect staff-added shifts
     if (customTimeSlots[date]) {
       const customOnes = customTimeSlots[date].map(t => ({
         time: t, type: '1:1' as const, price: 50, lessonId: 'hitting' as LessonType
@@ -548,7 +522,6 @@ const App: React.FC = () => {
       slots = [...slots, ...filteredCustoms];
     }
 
-    // Database connection: Filter out already reserved slots
     const bookedTimesOnDate = dbBookings
       .filter(b => b.date === date)
       .map(b => b.time);
@@ -712,7 +685,6 @@ const App: React.FC = () => {
                )}
             </div>
             
-            {/* Session Summary moved under Payment Information */}
             <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6">
               <div className="flex justify-between items-start border-b border-slate-200/60 pb-6">
                 <div><p className="text-[10px] font-black text-slate-400 uppercase mb-1">Training Roster</p><h3 className="text-lg font-black text-slate-900 uppercase italic">{booking.sport} Elite Development</h3></div>
@@ -755,7 +727,7 @@ const App: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead><tr className="bg-gray-50"><th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Athlete</th><th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Total Sessions</th><th className="px-8 py-4 text-[10px] font-black uppercase text-slate-500">Parental Contact</th><th className="px-8 py-4 text-right"></th></tr></thead>
-            <tbody className="divide-y divide-gray-100">{dbPlayers.map(p => (<tr key={p.id} className="hover:bg-gray-50/50 transition"><td className="px-8 py-6 font-black text-gray-800 uppercase italic text-sm">{p.name}</td><td className="px-8 py-6 font-black text-tlp-pink">{p.sessions}</td><td className="px-8 py-6 text-xs text-slate-500 font-medium uppercase tracking-tight">{p.parent.name} <br/><span className="text-[10px] opacity-70">{p.parent.phone}</span></td><td className="px-8 py-6 text-right"><button onClick={() => { setSelectedAthlete(p); setIsAthleteDrawerOpen(true); }} className="px-4 py-2 border-2 border-slate-900 bg-white text-slate-900 rounded-xl text-[10px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all shadow-sm">View Details</button></td></tr>))}</tbody>
+            <tbody className="divide-y divide-gray-100">{dbPlayers.map(p => (<tr key={p.id} className="hover:bg-gray-50/50 transition"><td className="px-8 py-6 font-black text-gray-800 uppercase italic text-sm">{p.name}</td><td className="px-8 py-6 font-black text-tlp-pink">{p.sessions || (p.history?.length || 0)}</td><td className="px-8 py-6 text-xs text-slate-500 font-medium uppercase tracking-tight">{p.parent_name} <br/><span className="text-[10px] opacity-70">{p.parent_phone}</span></td><td className="px-8 py-6 text-right"><button onClick={() => { setSelectedAthlete(p); setIsAthleteDrawerOpen(true); }} className="px-4 py-2 border-2 border-slate-900 bg-white text-slate-900 rounded-xl text-[10px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all shadow-sm">View Details</button></td></tr>))}</tbody>
           </table>
         </div>
       </div>
@@ -840,8 +812,8 @@ const App: React.FC = () => {
                 <tr key={c.id} className="hover:bg-gray-50/50 transition">
                   <td className="px-8 py-6 font-black text-gray-800 uppercase italic text-sm">{c.name}</td>
                   <td className="px-8 py-6 text-xs text-slate-500 font-bold uppercase tracking-widest">{c.role}</td>
-                  <td className="px-8 py-6 font-mono text-[11px] text-tlp-pink font-bold bg-pink-50/30">{c.idCode}</td>
-                  <td className="px-8 py-6 font-mono text-[11px] text-slate-600 font-bold italic">{c.securityKey}</td>
+                  <td className="px-8 py-6 font-mono text-[11px] text-tlp-pink font-bold bg-pink-50/30">{c.id_code}</td>
+                  <td className="px-8 py-6 font-mono text-[11px] text-slate-600 font-bold italic">{c.security_key}</td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex gap-2 justify-end">
                       <button className="w-8 h-8 rounded-lg text-slate-300 hover:text-tlp-pink transition-colors flex items-center justify-center">
@@ -1003,7 +975,7 @@ const App: React.FC = () => {
                       <h3 className="text-3xl font-black italic uppercase text-slate-950 leading-none">{selectedAthlete.name}</h3>
                       <div className="flex gap-2 pt-2">
                         <span className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full uppercase">Age {selectedAthlete.age}</span>
-                        <span className="text-[9px] font-black bg-pink-50 text-tlp-pink px-2 py-0.5 rounded-full uppercase">{selectedAthlete.sessions} Sessions Total</span>
+                        <span className="text-[9px] font-black bg-pink-50 text-tlp-pink px-2 py-0.5 rounded-full uppercase">{(selectedAthlete.sessions || selectedAthlete.history?.length || 0)} Sessions Total</span>
                       </div>
                     </div>
                     <button onClick={() => setIsAthleteDrawerOpen(false)} className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 hover:text-tlp-pink flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
@@ -1012,9 +984,9 @@ const App: React.FC = () => {
                   <div className="space-y-6">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2">Parent / Guardian Information</p>
                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Full Name</p><p className="font-bold text-slate-900">{selectedAthlete.parent.name}</p></div>
-                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Contact Email</p><p className="font-bold text-slate-900 truncate">{selectedAthlete.parent.email}</p></div>
-                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Phone Line</p><p className="font-bold text-slate-900">{selectedAthlete.parent.phone}</p></div>
+                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Full Name</p><p className="font-bold text-slate-900">{selectedAthlete.parent_name}</p></div>
+                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Contact Email</p><p className="font-bold text-slate-900 truncate">{selectedAthlete.parent_email}</p></div>
+                      <div><p className="text-[9px] font-black text-slate-400 uppercase">Phone Line</p><p className="font-bold text-slate-900">{selectedAthlete.parent_phone}</p></div>
                     </div>
                   </div>
 
@@ -1086,9 +1058,54 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 bg-white">
-      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 py-4 px-8 backdrop-blur-md bg-white/90"><div className="max-w-6xl mx-auto flex justify-between items-center"><div className="flex items-center gap-4 cursor-pointer" onClick={() => setStep(1)}><TLPLogo size="sm" /><h1 className="text-xl font-black text-slate-900 italic hidden sm:block uppercase"></h1></div>{!isGuest && (<button onClick={() => setIsAccountOpen(true)} className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black italic">G</button>)}</div></header>
-      <main className="max-w-6xl mx-auto px-6 mt-16"><div className="mb-20 flex justify-between relative max-w-2xl mx-auto"><div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0"></div><div className="absolute top-1/2 left-0 h-1 bg-tlp-pink -translate-y-1/2 z-0 transition-all duration-500" style={{ width: `${(step-1) * 50}%` }}></div>{[1, 2, 3].map(s => (<div key={s} className="relative z-10 flex flex-col items-center"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all ${step === s ? 'bg-tlp-pink text-white scale-110 shadow-lg' : step > s ? 'bg-slate-900 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>{step > s ? <i className="fas fa-check"></i> : s}</div><span className={`text-[9px] font-black uppercase mt-3 tracking-widest ${step === s ? 'text-tlp-pink' : 'text-slate-400'}`}>{s === 1 ? 'Details' : s === 2 ? 'Schedule' : 'Finish'}</span></div>))}</div>
-        <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-50 p-6 md:p-12 min-h-[400px] animate-fade-in overflow-hidden">{renderPlayerSteps()}<div className="mt-12 flex justify-between items-center pt-8 border-t border-slate-50">{step > 1 ? <button onClick={prevStep} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-tlp-pink">go back</button> : <div />}<span className="text-[10px] text-slate-500 font-black uppercase">Step {step}/3</span></div></div></main>
+      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 py-4 px-8 backdrop-blur-md bg-white/90">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4 cursor-pointer" onClick={() => setStep(1)}>
+            <TLPLogo size="sm" />
+            <h1 className="text-xl font-black text-slate-900 italic hidden sm:block uppercase">TRAIN LIKE <span className="text-tlp-pink">PROS</span></h1>
+          </div>
+          {!isGuest && (<button onClick={() => setIsAccountOpen(true)} className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black italic">G</button>)}
+        </div>
+      </header>
+      <main className="max-w-6xl mx-auto px-6 mt-16">
+        <div className="mb-20 flex justify-between relative max-w-2xl mx-auto">
+          <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 z-0"></div>
+          <div className="absolute top-1/2 left-0 h-1 bg-tlp-pink -translate-y-1/2 z-0 transition-all duration-500" style={{ width: `${(step-1) * 50}%` }}></div>
+          {[1, 2, 3].map(s => (
+            <div key={s} className="relative z-10 flex flex-col items-center">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-all ${step === s ? 'bg-tlp-pink text-white scale-110 shadow-lg' : step > s ? 'bg-slate-900 text-white' : 'bg-white border-2 border-slate-100 text-slate-300'}`}>
+                {step > s ? <i className="fas fa-check"></i> : s}
+              </div>
+              <span className={`text-[9px] font-black uppercase mt-3 tracking-widest ${step === s ? 'text-tlp-pink' : 'text-slate-400'}`}>
+                {s === 1 ? 'Details' : s === 2 ? 'Schedule' : 'Finish'}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-50 p-6 md:p-12 min-h-[400px] animate-fade-in overflow-hidden">
+          {dbError ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-6 text-center">
+               <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-2xl shadow-sm">
+                 <i className="fas fa-exclamation-triangle"></i>
+               </div>
+               <div className="space-y-2">
+                 <h2 className="text-lg font-black uppercase italic text-slate-900 tracking-tight">Sync Error</h2>
+                 <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">{dbError}</p>
+               </div>
+               <button onClick={fetchDatabase} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest italic hover:bg-tlp-pink transition-all">Retry Sync</button>
+            </div>
+          ) : isDbLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4">
+               <div className="w-12 h-12 border-4 border-tlp-pink border-t-transparent rounded-full animate-spin"></div>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Syncing with Facility Database...</p>
+            </div>
+          ) : renderPlayerSteps()}
+          <div className="mt-12 flex justify-between items-center pt-8 border-t border-slate-50">
+            {step > 1 ? <button onClick={prevStep} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-tlp-pink">go back</button> : <div />}
+            <span className="text-[10px] text-slate-500 font-black uppercase">Step {step}/3</span>
+          </div>
+        </div>
+      </main>
       <style>{`
         @keyframes fade-in { 
           from { opacity: 0; transform: translateY(10px); } 
