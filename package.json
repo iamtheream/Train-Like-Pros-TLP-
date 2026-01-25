@@ -1,18 +1,22 @@
 {
   "name": "tlp-training-scheduler",
   "private": true,
-  "homepage": "https://iamtheream.github.io/Train-Like-Pros-TLP-",
   "version": "1.0.0",
   "type": "module",
+  "homepage": "https://iamtheream.github.io/Train-Like-Pros-TLP-/",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "start": "react-scripts start",
+    "build": "react-scripts build",
     "preview": "vite preview",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build"
   },
   "dependencies": {
     "@google/genai": "^1.35.0",
+    "@supabase/supabase-js": "^2.47.12",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
@@ -20,8 +24,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "gh-pages": "^6.3.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "gh-pages": "^6.0.0"
   }
 }

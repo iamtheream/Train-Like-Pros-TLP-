@@ -242,7 +242,7 @@ const App: React.FC = () => {
       // 2. Fetch Players
       const { data: players, error: pErr } = await supabase.from('players').select('*');
       if (pErr) throw pErr;
-      if (players) setDbPlayers(players.map(p => ({
+      if (players) setDbPlayers(players.map((p: any) => ({
         ...p,
         history: p.training_history || []
       })));
@@ -250,7 +250,7 @@ const App: React.FC = () => {
       // 3. Fetch Bookings
       const { data: bookings, error: bErr } = await supabase.from('bookings').select('*');
       if (bErr) throw bErr;
-      if (bookings) setDbBookings(bookings.map(b => ({
+      if (bookings) setDbBookings(bookings.map((b: any) => ({
         id: b.id,
         player: b.player_name,
         time: b.session_time,
@@ -264,7 +264,7 @@ const App: React.FC = () => {
       if (clErr) throw clErr;
       if (closures) {
         const blocked: Record<string, boolean> = {};
-        closures.forEach(c => blocked[c.closed_date] = true);
+        closures.forEach((c: any) => blocked[c.closed_date] = true);
         setBlockedSlots(blocked);
       }
 
@@ -273,7 +273,7 @@ const App: React.FC = () => {
       if (sErr) throw sErr;
       if (shifts) {
         const custom: Record<string, string[]> = {};
-        shifts.forEach(s => {
+        shifts.forEach((s: any) => {
           if (!custom[s.shift_date]) custom[s.shift_date] = [];
           custom[s.shift_date].push(s.shift_time);
         });
