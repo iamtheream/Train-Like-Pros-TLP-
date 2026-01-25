@@ -5,14 +5,12 @@
   "type": "module",
   "homepage": "https://iamtheream.github.io/Train-Like-Pros-TLP-/",
   "scripts": {
+    "start": "vite",
     "dev": "vite",
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@google/genai": "^1.35.0",
@@ -23,10 +21,9 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "react-scripts": "5.0.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "gh-pages": "^6.0.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5",
-    "gh-pages": "^6.0.0"
+    "vite": "^6.0.5"
   }
 }
