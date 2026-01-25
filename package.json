@@ -1,10 +1,9 @@
 {
   "name": "tlp-training-scheduler",
   "private": true,
-  "homepage": "http://iamtheream.github.io/Train-Like-Pros-TLP-",
+  "homepage": "https://iamtheream.github.io/Train-Like-Pros-TLP-",
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://iamtheream.github.io/Train-Like-Pros-TLP-/",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
