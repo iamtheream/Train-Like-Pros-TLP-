@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { BookingState, Sport, LessonType, TrainingSession, UserRole } from './types.ts';
-import { SPORTS_OPTIONS, LESSONS, TIME_SLOTS } from './constants.ts';
-import { getTrainingAdvice } from './services/geminiService.ts';
+import { BookingState, Sport, LessonType, TrainingSession, UserRole } from './types';
+import { SPORTS_OPTIONS, LESSONS, TIME_SLOTS } from './constants';
+import { getTrainingAdvice } from './services/geminiService';
 
 type AuthView = 'login' | 'register' | 'forgot' | 'admin';
 type AdminTab = 'dashboard' | 'players' | 'schedule' | 'staff';
