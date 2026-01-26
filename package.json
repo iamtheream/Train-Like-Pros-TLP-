@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.35.0",
-    "@supabase/supabase-js": "^2.47.12",
+    "@supabase/supabase-js": "^2.91.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
